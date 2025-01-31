@@ -65,6 +65,10 @@ def json_default(value: Any) -> Any:
         return str(value)
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         raise TypeError(f"non-finite float is not JSON-safe: {value!r}")
+    if hasattr(value, "__dataclass_fields__"):
+        return {k: getattr(value, k) for k in value.__dataclass_fields__}
+    if isinstance(value, tuple) and hasattr(value, "_fields"):
+        return {k: getattr(value, k) for k in value._fields}
     raise TypeError(f"object of type {type(value).__name__} is not JSON serializable")
 
 
