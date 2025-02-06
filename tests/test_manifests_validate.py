@@ -62,3 +62,11 @@ def test_reject_duplicate_ids_flags_duplicate() -> None:
 def test_reject_duplicate_ids_skips_missing_id() -> None:
     rows = [{"schema": "hypofuse.system", "system_id": "s1"}, {}]
     reject_duplicate_ids(rows, id_field="utterance_id")
+
+
+def test_reject_duplicate_ids_allows_same_id_across_schemas() -> None:
+    rows = [
+        _nbest("a"),
+        {"schema": "hypofuse.reference", "utterance_id": "a", "text": "hi"},
+    ]
+    reject_duplicate_ids(rows)

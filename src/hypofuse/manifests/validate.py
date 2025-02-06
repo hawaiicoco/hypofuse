@@ -68,11 +68,15 @@ def validate_record(row: Mapping[str, Any]) -> str:
 
 
 def reject_duplicate_ids(rows: Iterable[Mapping[str, Any]], id_field: str = "utterance_id") -> None:
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     for idx, row in enumerate(rows):
         value = row.get(id_field)
         if value is None:
             continue
-        if value in seen:
-            raise DuplicateIdError(f"duplicate {id_field}={value!r} at row {idx}")
-        seen.add(value)
+        schema = row.get("schema", "")
+        key = (schema, value)
+        if key in seen:
+            raise DuplicateIdError(
+                f"duplicate {id_field}={value!r} in schema {schema!r} at row {idx}"
+            )
+        seen.add(key)
