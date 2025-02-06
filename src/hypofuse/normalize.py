@@ -134,12 +134,12 @@ def normalize(text: str, config: NormalizationConfig | None = None) -> str:
     result = unicodedata.normalize("NFC", text)
     if config.fullwidth_to_halfwidth:
         result = result.translate(_FULLWIDTH_TRANSLATE)
+    if config.strip_punctuation:
+        result = "".join(ch for ch in result if not unicodedata.category(ch).startswith("P"))
     if config.digits_to == "spoken":
         result = _DIGITS_RE.sub("0", result)
     elif config.digits_to == "hash":
         result = _DIGITS_RE.sub("#", result)
-    if config.strip_punctuation:
-        result = "".join(ch for ch in result if not unicodedata.category(ch).startswith("P"))
     if config.case_fold:
         result = result.casefold()
     if config.collapse_whitespace:
