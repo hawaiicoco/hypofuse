@@ -80,7 +80,7 @@ def progressive_align(
         return TokenGrid(
             columns=tuple((tok,) for tok in anchors[0]),
             hypotheses=(anchors[0],),
-            back_pointers=(tuple(((i, "MATCH") for i, _ in enumerate(anchors[0]))),),
+            back_pointers=(tuple((i, "MATCH") for i, _ in enumerate(anchors[0])),),
             pair_alignments=(),
         )
     pair_alignments: list[Alignment] = []
@@ -126,7 +126,7 @@ def progressive_align(
         while len(new_pointers) < len(anchors[hyp_idx]):
             new_pointers.append([])
         grid_columns = new_columns
-        back_pointers.append(tuple(tuple(p) for p in new_pointers))
+        back_pointers.append(tuple(new_pointers))
     columns = tuple(tuple(col) for col in grid_columns)
     return TokenGrid(
         columns=columns,
@@ -145,8 +145,11 @@ def _as_tuple(seq: Sequence[Hashable]) -> tuple[Hashable, ...]:
 def grid_row(grid: TokenGrid, hypothesis_index: int) -> tuple[Hashable, ...]:
     """Return the token sequence for one hypothesis inside the grid."""
     row = [GAP] * grid.width
-    for grid_col, pointer in enumerate(grid.back_pointers[hypothesis_index]):
-        row[grid_col] = grid.hypotheses[hypothesis_index][pointer[0]]
+    pointers = grid.back_pointers[hypothesis_index]
+    for hyp_pos, pointer_list in enumerate(pointers):
+        for pointer in pointer_list:
+            grid_col = pointer[0]
+            row[grid_col] = grid.hypotheses[hypothesis_index][hyp_pos]
     return tuple(row)
 
 
