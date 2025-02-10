@@ -124,9 +124,17 @@ def progressive_align(
                 raise AlignmentError(f"unknown op {op.op}")
         # Ensure each existing grid column has the right number of entries.
         while len(new_pointers) < len(anchors[hyp_idx]):
-            new_pointers.append([])
+            new_pointers.append((len(grid_columns), "DEL"))
         grid_columns = new_columns
-        back_pointers.append(tuple(new_pointers))
+        # Convert each new_pointers[h_pos] (list of (col, op)) into a tuple.
+        flat: list[tuple[int, str]] = []
+        for h_pos in range(len(anchors[hyp_idx])):
+            entries = new_pointers[h_pos]
+            if not entries:
+                flat.append((len(grid_columns) - 1, "DEL"))
+            else:
+                flat.append(entries[0])
+        back_pointers.append(tuple(flat))
     columns = tuple(tuple(col) for col in grid_columns)
     return TokenGrid(
         columns=columns,
@@ -146,10 +154,9 @@ def grid_row(grid: TokenGrid, hypothesis_index: int) -> tuple[Hashable, ...]:
     """Return the token sequence for one hypothesis inside the grid."""
     row = [GAP] * grid.width
     pointers = grid.back_pointers[hypothesis_index]
-    for hyp_pos, pointer_list in enumerate(pointers):
-        for pointer in pointer_list:
-            grid_col = pointer[0]
-            row[grid_col] = grid.hypotheses[hypothesis_index][hyp_pos]
+    for hyp_pos, pointer in enumerate(pointers):
+        grid_col = pointer[0]
+        row[grid_col] = grid.hypotheses[hypothesis_index][hyp_pos]
     return tuple(row)
 
 
