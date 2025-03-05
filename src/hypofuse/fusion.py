@@ -118,7 +118,9 @@ def fuse(
         for h_idx, token in enumerate(column):
             if token == GAP:
                 continue
-            candidates.append((token, max(0.0, score_grid[col_idx][h_idx])))
+            weight = score_grid[col_idx][h_idx]
+            weight = 1.0 if scores is None else max(0.0, weight)
+            candidates.append((token, weight))
             lm_col.append(lm_grid[col_idx][h_idx])
         if not candidates:
             tokens.append(config.null_token)
