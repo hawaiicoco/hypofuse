@@ -82,7 +82,7 @@ class NgramLM:
         if n < 1 or n > self.order:
             raise LanguageModelError(f"ngram order out of range: {n}")
         if lambdas is None:
-            lambdas = tuple(0.5 / self.order for _ in range(self.order))
+            lambdas = tuple(1.0 / self.order for _ in range(self.order))
         if abs(sum(lambdas) - 1.0) > 1e-6:
             raise LanguageModelError("lambdas must sum to 1")
         ngram = tuple(self._map(t) for t in ngram)
