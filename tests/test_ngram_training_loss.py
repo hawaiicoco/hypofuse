@@ -22,5 +22,8 @@ def test_perplexity_is_finite_after_growing_corpus() -> None:
     pp_after = grown.perplexity(["the", "cat", "sat", "on", "the", "mat"])
     assert math.isfinite(pp_after)
     assert math.isfinite(pp_before)
+    # Larger models have more smoothing mass and thus somewhat higher per-token
+    # probability mass over unseen continuations. We only require both values to
+    # remain finite and bounded.
     assert 1.0 <= pp_after <= 1000.0
     assert 1.0 <= pp_before <= 1000.0
