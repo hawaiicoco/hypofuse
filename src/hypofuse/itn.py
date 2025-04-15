@@ -38,6 +38,13 @@ class ItnConfig:
     units: bool = True
     negative: bool = True
 
+    def validate(self) -> None:
+        """Raise ``ValueError`` for unknown language or all-flags-off."""
+        if self.language not in ("en", "zh"):
+            raise ValueError(f"unknown language: {self.language!r}")
+        if not any([self.numbers, self.decimals, self.percent, self.units, self.negative]):
+            raise ValueError("at least one conversion flag must be enabled")
+
     def with_overrides(self, **changes: object) -> ItnConfig:
         """Return a new config with the given fields replaced."""
         return replace(self, **changes)
