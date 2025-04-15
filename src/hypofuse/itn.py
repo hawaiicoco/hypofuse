@@ -48,3 +48,59 @@ class ItnConfig:
     def with_overrides(self, **changes: object) -> ItnConfig:
         """Return a new config with the given fields replaced."""
         return replace(self, **changes)
+
+
+_EN_ONES: dict[str, int] = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+}
+
+_EN_TENS: dict[str, int] = {
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+}
+
+
+def en_words_to_int(text: str) -> int:
+    """Convert an English number phrase to an integer (0..99).
+
+    Accepts hyphens ("twenty-one") and the word "and". Raises
+    ``ValueError`` on empty input or unknown words.
+    """
+    tokens = text.lower().replace("-", " ").split()
+    tokens = [t for t in tokens if t != "and"]
+    if not tokens:
+        raise ValueError("empty number phrase")
+    result = 0
+    for token in tokens:
+        if token in _EN_ONES:
+            result += _EN_ONES[token]
+        elif token in _EN_TENS:
+            result += _EN_TENS[token]
+        else:
+            raise ValueError(f"unknown number word: {token!r}")
+    return result
