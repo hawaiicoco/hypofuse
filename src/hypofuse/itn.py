@@ -86,9 +86,10 @@ _EN_TENS: dict[str, int] = {
 
 
 def en_words_to_int(text: str) -> int:
-    """Convert an English number phrase to an integer (0..99).
+    """Convert an English number phrase to an integer (0..999999).
 
-    Accepts hyphens ("twenty-one") and the word "and". Raises
+    Accepts hyphens ("twenty-one"), the word "and" ("one hundred and
+    five"), and scale words "hundred", "thousand", "million". Raises
     ``ValueError`` on empty input or unknown words.
     """
     tokens = text.lower().replace("-", " ").split()
@@ -96,11 +97,26 @@ def en_words_to_int(text: str) -> int:
     if not tokens:
         raise ValueError("empty number phrase")
     result = 0
+    current = 0
+    saw_value = False
     for token in tokens:
         if token in _EN_ONES:
-            result += _EN_ONES[token]
+            current += _EN_ONES[token]
+            saw_value = True
         elif token in _EN_TENS:
-            result += _EN_TENS[token]
+            current += _EN_TENS[token]
+            saw_value = True
+        elif token == "hundred":
+            current *= 100
+        elif token == "thousand":
+            result += current * 1000
+            current = 0
+        elif token == "million":
+            result += current * 1_000_000
+            current = 0
         else:
             raise ValueError(f"unknown number word: {token!r}")
+    result += current
+    if not saw_value:
+        raise ValueError(f"no numeric value found in: {text!r}")
     return result
