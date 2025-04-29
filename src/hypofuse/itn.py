@@ -177,3 +177,74 @@ def zh_words_to_int(text: str) -> int:
         lower_part = _parse_zh_section(parts[1]) if parts[1] else 0
         return wan_part * 10000 + lower_part
     return _parse_zh_section(text)
+
+
+_EN_ONES_LIST = [
+    "",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+]
+
+_EN_TENS_LIST = [
+    "",
+    "",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+]
+
+
+def _en_under_1000(n: int) -> str:
+    """Convert 0..999 to English words (no 'and')."""
+    parts: list[str] = []
+    if n >= 100:
+        parts.append(_EN_ONES_LIST[n // 100] + " hundred")
+        n %= 100
+    if n >= 20:
+        parts.append(_EN_TENS_LIST[n // 10])
+        n %= 10
+    if n > 0:
+        parts.append(_EN_ONES_LIST[n])
+    return " ".join(parts)
+
+
+def int_to_en_words(n: int) -> str:
+    """Convert an integer (0..999999) to English words.
+
+    Raises ``ValueError`` for values outside the supported range.
+    """
+    if not isinstance(n, int) or isinstance(n, bool):
+        raise TypeError(f"expected int, got {type(n).__name__}")
+    if not 0 <= n <= 999_999:
+        raise ValueError(f"out of supported range: {n}")
+    if n == 0:
+        return "zero"
+    parts: list[str] = []
+    if n >= 1000:
+        parts.append(_en_under_1000(n // 1000) + " thousand")
+        n %= 1000
+    if n > 0:
+        parts.append(_en_under_1000(n))
+    return " ".join(parts)
