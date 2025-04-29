@@ -120,3 +120,53 @@ def en_words_to_int(text: str) -> int:
     if not saw_value:
         raise ValueError(f"no numeric value found in: {text!r}")
     return result
+
+
+_ZH_DIGITS: dict[str, int] = {
+    "\u96f6": 0,
+    "\u4e00": 1,
+    "\u4e8c": 2,
+    "\u4e09": 3,
+    "\u56db": 4,
+    "\u4e94": 5,
+    "\u516d": 6,
+    "\u4e03": 7,
+    "\u516b": 8,
+    "\u4e5d": 9,
+}
+
+_ZH_SMALL_UNITS: dict[str, int] = {
+    "\u5341": 10,
+    "\u767e": 100,
+    "\u5343": 1000,
+}
+
+
+def _parse_zh_section(text: str) -> int:
+    """Parse a Chinese number section (up to 9999)."""
+    result = 0
+    current = 0
+    for ch in text:
+        if ch in _ZH_DIGITS:
+            current = _ZH_DIGITS[ch]
+        elif ch in _ZH_SMALL_UNITS:
+            unit = _ZH_SMALL_UNITS[ch]
+            if current == 0 and unit == 10:
+                current = 1
+            result += current * unit
+            current = 0
+        else:
+            raise ValueError(f"unknown Chinese digit: {ch!r}")
+    return result + current
+
+
+def zh_words_to_int(text: str) -> int:
+    """Convert a Chinese number phrase to an integer (0..99).
+
+    Supports characters: \\u96f6\\u4e00\\u4e8c\\u4e09\\u56db\\u4e94
+    \\u516d\\u4e03\\u516b\\u4e5d\\u5341. Raises ``ValueError`` on
+    empty input or unknown characters.
+    """
+    if not text:
+        raise ValueError("empty number phrase")
+    return _parse_zh_section(text)
