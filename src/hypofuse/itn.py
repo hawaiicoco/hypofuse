@@ -161,12 +161,19 @@ def _parse_zh_section(text: str) -> int:
 
 
 def zh_words_to_int(text: str) -> int:
-    """Convert a Chinese number phrase to an integer (0..99).
+    """Convert a Chinese number phrase to an integer (0..99999999).
 
-    Supports characters: \\u96f6\\u4e00\\u4e8c\\u4e09\\u56db\\u4e94
-    \\u516d\\u4e03\\u516b\\u4e5d\\u5341. Raises ``ValueError`` on
-    empty input or unknown characters.
+    Supports: \\u96f6\\u4e00..\\u4e5d, \\u5341\\u767e\\u5343\\u4e07.
+    Raises ``ValueError`` on empty input or unknown characters.
     """
     if not text:
         raise ValueError("empty number phrase")
+    wan = "\u4e07"
+    if wan in text:
+        parts = text.split(wan)
+        if len(parts) != 2:
+            raise ValueError(f"multiple wan markers in: {text!r}")
+        wan_part = _parse_zh_section(parts[0]) if parts[0] else 1
+        lower_part = _parse_zh_section(parts[1]) if parts[1] else 0
+        return wan_part * 10000 + lower_part
     return _parse_zh_section(text)
