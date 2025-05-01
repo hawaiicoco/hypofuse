@@ -318,3 +318,71 @@ def int_to_zh_words(n: int) -> str:
             result += "\u96f6"
         result += lower_str
     return result
+
+
+def en_phrase_to_digits(text: str) -> str:
+    """Convert an English number phrase to a digit string.
+
+    Handles decimals ("three point one four" -> "3.14") and negatives
+    ("minus five" -> "-5", "negative five" -> "-5").
+    """
+    text = text.strip()
+    negative = False
+    low = text.lower()
+    if low.startswith("minus "):
+        negative = True
+        text = text[6:]
+        low = text.lower()
+    elif low.startswith("negative "):
+        negative = True
+        text = text[9:]
+        low = text.lower()
+    if " point " in low:
+        idx = low.index(" point ")
+        int_text = text[:idx]
+        frac_text = text[idx + 7 :]
+        int_part = en_words_to_int(int_text)
+        frac_tokens = frac_text.lower().replace("-", " ").split()
+        frac_tokens = [t for t in frac_tokens if t != "and"]
+        frac_digits = []
+        for token in frac_tokens:
+            if token in _EN_ONES and _EN_ONES[token] < 10:
+                frac_digits.append(str(_EN_ONES[token]))
+            else:
+                raise ValueError(f"invalid fractional digit: {token!r}")
+        result = f"{int_part}.{''.join(frac_digits)}"
+    else:
+        result = str(en_words_to_int(text))
+    if negative:
+        result = "-" + result
+    return result
+
+
+def zh_phrase_to_digits(text: str) -> str:
+    """Convert a Chinese number phrase to a digit string.
+
+    Handles decimals and negatives (\\u8d1f prefix).
+    """
+    text = text.strip()
+    negative = False
+    if text.startswith("\u8d1f"):
+        negative = True
+        text = text[1:]
+    dian = "\u70b9"
+    if dian in text:
+        parts = text.split(dian)
+        if len(parts) != 2:
+            raise ValueError(f"invalid decimal: {text!r}")
+        int_part = zh_words_to_int(parts[0]) if parts[0] else 0
+        frac_digits = []
+        for ch in parts[1]:
+            if ch in _ZH_DIGITS and _ZH_DIGITS[ch] < 10:
+                frac_digits.append(str(_ZH_DIGITS[ch]))
+            else:
+                raise ValueError(f"invalid fractional digit: {ch!r}")
+        result = f"{int_part}.{''.join(frac_digits)}"
+    else:
+        result = str(zh_words_to_int(text))
+    if negative:
+        result = "-" + result
+    return result
