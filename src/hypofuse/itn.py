@@ -248,3 +248,73 @@ def int_to_en_words(n: int) -> str:
     if n > 0:
         parts.append(_en_under_1000(n))
     return " ".join(parts)
+
+
+_ZH_DIGITS_LIST = [
+    "\u96f6",
+    "\u4e00",
+    "\u4e8c",
+    "\u4e09",
+    "\u56db",
+    "\u4e94",
+    "\u516d",
+    "\u4e03",
+    "\u516b",
+    "\u4e5d",
+]
+
+
+def _zh_section(n: int) -> str:
+    """Convert 1..9999 to Chinese characters."""
+    if n == 0:
+        return ""
+    parts: list[str] = []
+    units = [
+        (1000, "\u5343"),
+        (100, "\u767e"),
+        (10, "\u5341"),
+    ]
+    need_zero = False
+    for unit_val, unit_ch in units:
+        digit = n // unit_val
+        n %= unit_val
+        if digit > 0:
+            if need_zero:
+                parts.append("\u96f6")
+            parts.append(_ZH_DIGITS_LIST[digit] + unit_ch)
+            need_zero = False
+        elif parts:
+            need_zero = True
+    if n > 0:
+        if need_zero:
+            parts.append("\u96f6")
+        parts.append(_ZH_DIGITS_LIST[n])
+    result = "".join(parts)
+    # Simplify leading \u4e00\u5341 to \u5341 (e.g. \u5341\u4e94 not \u4e00\u5341\u4e94)
+    if result.startswith("\u4e00\u5341"):
+        result = "\u5341" + result[2:]
+    return result
+
+
+def int_to_zh_words(n: int) -> str:
+    """Convert an integer (0..99999999) to Chinese characters.
+
+    Raises ``ValueError`` for values outside the supported range.
+    """
+    if not isinstance(n, int) or isinstance(n, bool):
+        raise TypeError(f"expected int, got {type(n).__name__}")
+    if not 0 <= n <= 99_999_999:
+        raise ValueError(f"out of supported range: {n}")
+    if n == 0:
+        return "\u96f6"
+    wan_part = n // 10000
+    lower_part = n % 10000
+    result = ""
+    if wan_part > 0:
+        result = _zh_section(wan_part) + "\u4e07"
+    if lower_part > 0:
+        lower_str = _zh_section(lower_part)
+        if wan_part > 0 and lower_part < 1000:
+            result += "\u96f6"
+        result += lower_str
+    return result
