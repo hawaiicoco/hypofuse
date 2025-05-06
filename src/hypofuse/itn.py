@@ -386,3 +386,34 @@ def zh_phrase_to_digits(text: str) -> str:
     if negative:
         result = "-" + result
     return result
+
+
+# Unit tables: intentionally small and extensible by downstream users.
+_EN_UNITS: dict[str, str] = {
+    "kilograms": "kg",
+    "kilogram": "kg",
+    "meters": "m",
+    "meter": "m",
+    "metres": "m",
+    "metre": "m",
+    "seconds": "s",
+    "second": "s",
+    "hours": "h",
+    "hour": "h",
+}
+
+_ZH_UNITS: dict[str, str] = {
+    "\u516c\u65a4": "kg",
+    "\u7c73": "m",
+    "\u79d2": "s",
+}
+
+
+def en_lookup_unit(text: str) -> str | None:
+    """Look up an English unit word, return abbreviation or None."""
+    return _EN_UNITS.get(text.lower())
+
+
+def zh_lookup_unit(text: str) -> str | None:
+    """Look up a Chinese unit word, return abbreviation or None."""
+    return _ZH_UNITS.get(text)
