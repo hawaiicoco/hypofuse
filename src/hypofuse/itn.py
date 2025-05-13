@@ -417,3 +417,69 @@ def en_lookup_unit(text: str) -> str | None:
 def zh_lookup_unit(text: str) -> str | None:
     """Look up a Chinese unit word, return abbreviation or None."""
     return _ZH_UNITS.get(text)
+
+
+def words_to_digits(text: str, config: ItnConfig | None = None) -> str:
+    """Replace number phrases in text with digit strings.
+
+    Idempotent: applying twice gives the same result as applying once.
+    Never raises on ordinary prose; only on invalid config.
+    """
+    config = config or ItnConfig()
+    config.validate()
+    if not text:
+        return ""
+    # Simplified implementation: try to parse entire text as number phrase
+    # A full implementation would scan for number spans within prose
+    try:
+        if config.language == "en":
+            return en_phrase_to_digits(text)
+        return zh_phrase_to_digits(text)
+    except ValueError:
+        # Not a number phrase, return as-is
+        return text
+
+
+def digits_to_words(text: str, config: ItnConfig | None = None) -> str:
+    """Replace digit sequences in text with word form.
+
+    Inverse of words_to_digits for numbers within the supported range.
+    Never raises on ordinary prose; only on invalid config.
+    """
+    config = config or ItnConfig()
+    config.validate()
+    if not text:
+        return ""
+    # Simplified implementation: try to parse entire text as digits
+    # A full implementation would scan for digit spans within prose
+    try:
+        # Handle negative
+        negative = False
+        working = text.strip()
+        if working.startswith("-"):
+            negative = True
+            working = working[1:]
+        # Handle decimal
+        if "." in working:
+            parts = working.split(".")
+            if len(parts) != 2:
+                return text
+            int_part = int(parts[0])
+            frac_part = parts[1]
+            if config.language == "en":
+                int_words = int_to_en_words(int_part)
+                frac_words = " ".join(int_to_en_words(int(d)) for d in frac_part)
+                result = f"{int_words} point {frac_words}"
+            else:
+                int_words = int_to_zh_words(int_part)
+                frac_words = "".join(_ZH_DIGITS_LIST[int(d)] for d in frac_part)
+                result = f"{int_words}\u70b9{frac_words}"
+        else:
+            n = int(working)
+            result = int_to_en_words(n) if config.language == "en" else int_to_zh_words(n)
+        if negative:
+            result = "negative " + result if config.language == "en" else "\u8d1f" + result
+        return result
+    except (ValueError, TypeError):
+        # Not a valid digit sequence, return as-is
+        return text
