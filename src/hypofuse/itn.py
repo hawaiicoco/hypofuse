@@ -483,3 +483,13 @@ def digits_to_words(text: str, config: ItnConfig | None = None) -> str:
     except (ValueError, TypeError):
         # Not a valid digit sequence, return as-is
         return text
+
+
+def itn_roundtrip_stable(text: str, config: ItnConfig | None = None) -> bool:
+    """Check that words_to_digits(digits_to_words(words_to_digits(t))) == words_to_digits(t).
+
+    This helper is used by tests to verify roundtrip stability.
+    """
+    once = words_to_digits(text, config)
+    roundtrip = words_to_digits(digits_to_words(once, config), config)
+    return once == roundtrip
