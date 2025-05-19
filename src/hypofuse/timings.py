@@ -70,3 +70,28 @@ class TimingTrack:
                         f"overlapping tokens at index {i}: "
                         f"start_s={tt.start_s} < previous end_s={prev_end}"
                     )
+
+    @property
+    def total_s(self) -> float:
+        """Total span from first start to last end.
+
+        Returns ``0.0`` for empty tracks.
+        """
+        if not self.tokens:
+            return 0.0
+        return self.tokens[-1].end_s - self.tokens[0].start_s
+
+    def speaking_ratio(self) -> float:
+        """Fraction of :attr:`total_s` occupied by speaking tokens.
+
+        Computed as ``sum(duration_s) / total_s``. Returns ``0.0`` for
+        empty tracks or tracks with zero span.
+        """
+        span = self.total_s
+        if span == 0.0:
+            return 0.0
+        speaking = sum(t.duration_s for t in self.tokens)
+        return speaking / span
+
+    def __len__(self) -> int:
+        return len(self.tokens)
