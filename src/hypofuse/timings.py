@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
+
+from hypofuse.exceptions import SchemaError
 
 
 @dataclass(frozen=True)
@@ -95,3 +98,60 @@ class TimingTrack:
 
     def __len__(self) -> int:
         return len(self.tokens)
+
+
+def from_manifest_row(row: Any) -> TimingTrack:
+    """Parse an n-best manifest row into a :class:`TimingTrack`.
+
+    Expected shape::
+
+        {"tokens": ["a", "b"], "timings": [{"start_s": 0.0, "end_s": 0.5}, ...]}
+
+    Raises :class:`~hypofuse.exceptions.SchemaError` when the row is
+    malformed (missing fields, wrong types, length mismatch, or invalid
+    timing values).
+    """
+    if not isinstance(row, dict):
+        raise SchemaError("row must be a dict")
+    if "tokens" not in row:
+        raise SchemaError("missing 'tokens' field")
+    if "timings" not in row:
+        raise SchemaError("missing 'timings' field")
+    tokens_field = row["tokens"]
+    timings_field = row["timings"]
+    if not isinstance(tokens_field, list):
+        raise SchemaError("'tokens' must be a list")
+    if not isinstance(timings_field, list):
+        raise SchemaError("'timings' must be a list")
+    if len(tokens_field) != len(timings_field):
+        raise SchemaError("'tokens' and 'timings' must have the same length")
+    built: list[TokenTiming] = []
+    for idx, (tok, tmg) in enumerate(zip(tokens_field, timings_field, strict=True)):
+        if not isinstance(tok, str):
+            raise SchemaError(f"token at index {idx} must be a string")
+        if not isinstance(tmg, dict):
+            raise SchemaError(f"timing at index {idx} must be a dict")
+        if "start_s" not in tmg or "end_s" not in tmg:
+            raise SchemaError(f"timing at index {idx} missing start_s/end_s")
+        start = tmg["start_s"]
+        end = tmg["end_s"]
+        if not isinstance(start, (int, float)) or isinstance(start, bool):
+            raise SchemaError(f"start_s at index {idx} must be numeric")
+        if not isinstance(end, (int, float)) or isinstance(end, bool):
+            raise SchemaError(f"end_s at index {idx} must be numeric")
+        built.append(TokenTiming(token=tok, start_s=float(start), end_s=float(end)))
+    track = TimingTrack(tokens=tuple(built))
+    track.validate()
+    return track
+
+
+def to_manifest_row(track: TimingTrack) -> dict[str, Any]:
+    """Serialize a :class:`TimingTrack` to the n-best manifest dict shape.
+
+    The returned dict has keys ``"tokens"`` (list of str) and ``"timings"``
+    (list of ``{"start_s": ..., "end_s": ...}`` dicts).
+    """
+    return {
+        "tokens": [tt.token for tt in track.tokens],
+        "timings": [{"start_s": tt.start_s, "end_s": tt.end_s} for tt in track.tokens],
+    }
