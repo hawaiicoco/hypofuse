@@ -39,3 +39,34 @@ class TokenTiming:
     def duration_s(self) -> float:
         """Duration of this token in seconds."""
         return self.end_s - self.start_s
+
+
+@dataclass(frozen=True)
+class TimingTrack:
+    """An ordered sequence of non-overlapping token timings.
+
+    ``tolerance_s`` controls the floating-point slack allowed when deciding
+    whether two adjacent tokens overlap. The default ``1e-9`` is tight enough
+    to catch real overlaps while absorbing rounding noise.
+    """
+
+    tokens: tuple[TokenTiming, ...] = ()
+    tolerance_s: float = 1e-9
+
+    def validate(self) -> None:
+        """Validate every token and reject overlaps.
+
+        Touching boundaries (``end_s == next start_s``) are allowed.
+        Non-finite values (NaN, inf) are rejected with :class:`ValueError`.
+        """
+        for i, tt in enumerate(self.tokens):
+            tt.validate()
+            if not math.isfinite(tt.start_s) or not math.isfinite(tt.end_s):
+                raise ValueError(f"non-finite timing value at index {i}")
+            if i > 0:
+                prev_end = self.tokens[i - 1].end_s
+                if tt.start_s < prev_end - self.tolerance_s:
+                    raise ValueError(
+                        f"overlapping tokens at index {i}: "
+                        f"start_s={tt.start_s} < previous end_s={prev_end}"
+                    )
