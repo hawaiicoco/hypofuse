@@ -108,6 +108,7 @@ class NormalizationConfig:
     empty_reference_policy: str = "skip"  # "skip" | "error" | "pass"
     tokenization: str = "auto"  # "auto" | "word" | "char"
     language_hint: str = ""
+    itn: bool = False  # apply inverse text normalization when True
 
     def with_overrides(self, **changes: object) -> NormalizationConfig:
         return replace(self, **changes)
@@ -144,6 +145,12 @@ def normalize(text: str, config: NormalizationConfig | None = None) -> str:
         result = result.casefold()
     if config.collapse_whitespace:
         result = _collapse(result)
+    if config.itn:
+        # Lazy import keeps ``hypofuse.itn`` free of a normalization dependency.
+        from hypofuse.itn import ItnConfig, words_to_digits
+
+        itn_config = ItnConfig(language=config.language_hint or "en")
+        result = words_to_digits(result, itn_config)
     return result
 
 
