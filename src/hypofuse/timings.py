@@ -250,3 +250,40 @@ def align_timings(
         else:
             raise AlignmentError(f"unexpected alignment op: {op.op}")
     return tuple(steps)
+
+
+def interpolate_gaps(track: TimingTrack, max_gap_s: float) -> TimingTrack:
+    """Fill zero-duration tokens by splitting the surrounding silence evenly.
+
+    For each token whose ``duration_s`` is zero, the silence before it
+    (``start_s - prev_end``) and after it (``next_start - end_s``) is each
+    halved and the token is expanded into the middle of that window.
+
+    ``max_gap_s`` caps the *total* surrounding gap (``next_start - prev_end``)
+    eligible for interpolation; tokens whose gap exceeds this threshold are
+    left unchanged. Raises :class:`ValueError` when ``max_gap_s`` is negative.
+
+    The transformation preserves the track span (first ``start_s`` and last
+    ``end_s`` are unchanged) and the token order.
+    """
+    if max_gap_s < 0.0:
+        raise ValueError("max_gap_s must not be negative")
+    if not track.tokens:
+        return track
+
+    tokens = list(track.tokens)
+    result: list[TokenTiming] = []
+    for i, tt in enumerate(tokens):
+        if tt.duration_s > 0.0:
+            result.append(tt)
+            continue
+        prev_end = tokens[i - 1].end_s if i > 0 else tt.start_s
+        next_start = tokens[i + 1].start_s if i < len(tokens) - 1 else tt.end_s
+        total_gap = next_start - prev_end
+        if total_gap <= 0.0 or total_gap > max_gap_s:
+            result.append(tt)
+            continue
+        new_start = (prev_end + tt.start_s) / 2.0
+        new_end = (tt.end_s + next_start) / 2.0
+        result.append(TokenTiming(token=tt.token, start_s=new_start, end_s=new_end))
+    return TimingTrack(tokens=tuple(result), tolerance_s=track.tolerance_s)
