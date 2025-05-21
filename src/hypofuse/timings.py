@@ -11,7 +11,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from hypofuse.exceptions import SchemaError
+from hypofuse.alignment import DEL, INS, MATCH, SUB, edit_alignment
+from hypofuse.exceptions import AlignmentError, SchemaError
 
 
 @dataclass(frozen=True)
@@ -155,3 +156,97 @@ def to_manifest_row(track: TimingTrack) -> dict[str, Any]:
         "tokens": [tt.token for tt in track.tokens],
         "timings": [{"start_s": tt.start_s, "end_s": tt.end_s} for tt in track.tokens],
     }
+
+
+@dataclass(frozen=True)
+class TimingAlignmentStep:
+    """One step in a timing-aware alignment between reference and hypothesis.
+
+    ``op`` is one of ``"match"``, ``"substitution"``, ``"insertion"``,
+    ``"deletion"`` (lowercase to distinguish from the alignment module
+    constants). ``ref_index`` and ``hyp_index`` are ``None`` when the
+    corresponding side has no token for this step.
+    """
+
+    op: str
+    ref_index: int | None
+    hyp_index: int | None
+    start_s: float
+    end_s: float
+
+
+def align_timings(
+    reference_track: TimingTrack,
+    hypothesis_track: TimingTrack,
+) -> tuple[TimingAlignmentStep, ...]:
+    """Map hypothesis token timings onto reference positions.
+
+    Runs :func:`hypofuse.alignment.edit_alignment` on the token strings and
+    attaches timing information from whichever side owns the token:
+
+    * ``match`` / ``substitution`` -- both sides present; start/end come
+      from the hypothesis track.
+    * ``insertion`` -- hypothesis only; start/end from hypothesis.
+    * ``deletion`` -- reference only; start/end from reference.
+    """
+    ref_tokens = [tt.token for tt in reference_track.tokens]
+    hyp_tokens = [tt.token for tt in hypothesis_track.tokens]
+    alignment = edit_alignment(ref_tokens, hyp_tokens)
+
+    steps: list[TimingAlignmentStep] = []
+    ref_idx = 0
+    hyp_idx = 0
+    for op in alignment.ops:
+        if op.op == MATCH:
+            ht = hypothesis_track.tokens[hyp_idx]
+            steps.append(
+                TimingAlignmentStep(
+                    op="match",
+                    ref_index=ref_idx,
+                    hyp_index=hyp_idx,
+                    start_s=ht.start_s,
+                    end_s=ht.end_s,
+                )
+            )
+            ref_idx += 1
+            hyp_idx += 1
+        elif op.op == SUB:
+            ht = hypothesis_track.tokens[hyp_idx]
+            steps.append(
+                TimingAlignmentStep(
+                    op="substitution",
+                    ref_index=ref_idx,
+                    hyp_index=hyp_idx,
+                    start_s=ht.start_s,
+                    end_s=ht.end_s,
+                )
+            )
+            ref_idx += 1
+            hyp_idx += 1
+        elif op.op == INS:
+            ht = hypothesis_track.tokens[hyp_idx]
+            steps.append(
+                TimingAlignmentStep(
+                    op="insertion",
+                    ref_index=None,
+                    hyp_index=hyp_idx,
+                    start_s=ht.start_s,
+                    end_s=ht.end_s,
+                )
+            )
+            hyp_idx += 1
+        elif op.op == DEL:
+            rt = reference_track.tokens[ref_idx]
+            steps.append(
+                TimingAlignmentStep(
+                    op="deletion",
+                    ref_index=ref_idx,
+                    hyp_index=None,
+                    start_s=rt.start_s,
+                    end_s=rt.end_s,
+                )
+            )
+            ref_idx += 1
+        else:
+            raise AlignmentError(f"unexpected alignment op: {op.op}")
+    return tuple(steps)
