@@ -287,3 +287,43 @@ def interpolate_gaps(track: TimingTrack, max_gap_s: float) -> TimingTrack:
         new_end = (tt.end_s + next_start) / 2.0
         result.append(TokenTiming(token=tt.token, start_s=new_start, end_s=new_end))
     return TimingTrack(tokens=tuple(result), tolerance_s=track.tolerance_s)
+
+
+def _round_half_away_from_zero(x: float) -> int:
+    """Round *x* to the nearest integer, breaking ties away from zero.
+
+    This is the classical "round half up" rule for positive values and
+    "round half down" for negative values, matching the behaviour expected
+    by most audio frame-grid quantizers.
+    """
+    if x >= 0.0:
+        return math.floor(x + 0.5)
+    return math.ceil(x - 0.5)
+
+
+def snap_to_grid(track: TimingTrack, frame_s: float = 0.01) -> TimingTrack:
+    """Quantize every timing boundary to a multiple of ``frame_s``.
+
+    Uses round-half-away-from-zero (documented in
+    :func:`_round_half_away_from_zero`) so the result is deterministic and
+    independent of the platform's banker's-rounding default.
+
+    The snapped track never has negative boundaries or inverted intervals:
+    ``start_s`` is clamped to ``>= 0`` and ``end_s >= start_s`` is enforced
+    after snapping.
+    """
+    if frame_s <= 0.0:
+        raise ValueError("frame_s must be positive")
+    if not track.tokens:
+        return track
+
+    result: list[TokenTiming] = []
+    for tt in track.tokens:
+        snapped_start = _round_half_away_from_zero(tt.start_s / frame_s) * frame_s
+        snapped_end = _round_half_away_from_zero(tt.end_s / frame_s) * frame_s
+        snapped_start = max(0.0, snapped_start)
+        snapped_end = max(0.0, snapped_end)
+        if snapped_end < snapped_start:
+            snapped_end = snapped_start
+        result.append(TokenTiming(token=tt.token, start_s=snapped_start, end_s=snapped_end))
+    return TimingTrack(tokens=tuple(result), tolerance_s=track.tolerance_s)
