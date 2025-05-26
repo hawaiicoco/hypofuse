@@ -349,3 +349,71 @@ def duration_buckets(
                 return f"<{edge}s"
             return f"{edges[i - 1]}-{edge}s"
     return f">={edges[-1]}s"
+
+
+@dataclass(frozen=True)
+class TimingReport:
+    """Summary statistics for a collection of timing tracks.
+
+    ``mean_s``, ``median_s``, and ``p95_s`` describe the distribution of
+    per-track total durations. ``gap_total_s`` sums every inter-token
+    silence across all tracks.
+    """
+
+    count: int
+    mean_s: float
+    median_s: float
+    p95_s: float
+    gap_total_s: float
+
+
+def _nearest_rank_quantile(sorted_values: list[float], q: float) -> float:
+    """Nearest-rank quantile (deterministic, no interpolation).
+
+    The rank is ``ceil(q * n)``, clamped to ``[1, n]``. This rule picks
+    the smallest value whose cumulative position is at or above the
+    requested percentile. Returns ``0.0`` for an empty input.
+    """
+    n = len(sorted_values)
+    if n == 0:
+        return 0.0
+    rank = math.ceil(q * n)
+    rank = max(1, min(rank, n))
+    return sorted_values[rank - 1]
+
+
+def timing_report(tracks: list[TimingTrack]) -> TimingReport:
+    """Compute summary statistics for a list of timing tracks.
+
+    * ``count`` -- number of tracks.
+    * ``mean_s`` -- arithmetic mean of per-track :attr:`TimingTrack.total_s`.
+    * ``median_s`` / ``p95_s`` -- nearest-rank quantiles (see
+      :func:`_nearest_rank_quantile`).
+    * ``gap_total_s`` -- sum of every inter-token silence across all tracks.
+
+    Pure Python implementation; does not depend on scipy or numpy.
+    """
+    if not tracks:
+        return TimingReport(count=0, mean_s=0.0, median_s=0.0, p95_s=0.0, gap_total_s=0.0)
+
+    durations: list[float] = []
+    gap_total = 0.0
+    for track in tracks:
+        durations.append(track.total_s)
+        for j in range(1, len(track.tokens)):
+            gap = track.tokens[j].start_s - track.tokens[j - 1].end_s
+            gap_total += max(0.0, gap)
+
+    count = len(durations)
+    mean_s = sum(durations) / count
+    sorted_d = sorted(durations)
+    median_s = _nearest_rank_quantile(sorted_d, 0.5)
+    p95_s = _nearest_rank_quantile(sorted_d, 0.95)
+
+    return TimingReport(
+        count=count,
+        mean_s=mean_s,
+        median_s=median_s,
+        p95_s=p95_s,
+        gap_total_s=gap_total,
+    )
