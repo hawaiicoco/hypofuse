@@ -327,3 +327,25 @@ def snap_to_grid(track: TimingTrack, frame_s: float = 0.01) -> TimingTrack:
             snapped_end = snapped_start
         result.append(TokenTiming(token=tt.token, start_s=snapped_start, end_s=snapped_end))
     return TimingTrack(tokens=tuple(result), tolerance_s=track.tolerance_s)
+
+
+def duration_buckets(
+    total_s: float,
+    edges: tuple[float, ...] = (1.0, 3.0, 8.0),
+) -> str:
+    """Classify a duration into a human-readable bucket label.
+
+    Boundary values land in the *upper* bucket: a duration of exactly
+    ``1.0`` is labelled ``"1.0-3.0s"``, not ``"<1.0s"``. The lowest bucket
+    captures everything strictly below ``edges[0]``; the highest bucket
+    captures everything at or above ``edges[-1]``.
+
+    Default edges produce labels: ``"<1.0s"``, ``"1.0-3.0s"``,
+    ``"3.0-8.0s"``, ``">=8.0s"``.
+    """
+    for i, edge in enumerate(edges):
+        if total_s < edge:
+            if i == 0:
+                return f"<{edge}s"
+            return f"{edges[i - 1]}-{edge}s"
+    return f">={edges[-1]}s"
