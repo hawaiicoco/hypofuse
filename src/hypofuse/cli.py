@@ -21,6 +21,72 @@ from hypofuse.manifests.jsonl import read_manifest, write_manifest
 from hypofuse.multi_align import progressive_align
 from hypofuse.normalize import NormalizationConfig, normalize_pair
 
+COMMANDS: tuple[str, ...] = (
+    "validate",
+    "normalize",
+    "score",
+    "align",
+    "fuse",
+    "rescore",
+    "calibrate",
+    "analyze",
+    "report",
+    "demo",
+)
+
+COMMAND_HELP: dict[str, str] = {
+    "validate": "Validate a JSONL manifest file.",
+    "normalize": "Normalize reference + hypothesis.",
+    "score": "Compute CER / WER over a manifest.",
+    "align": "Run multi-hypothesis alignment and print the grid.",
+    "fuse": "Fuse an n-best list with the chosen policy.",
+    "rescore": "Re-rank an n-best list with an LM.",
+    "calibrate": "Apply temperature scaling to per-token scores.",
+    "analyze": "Slice-based error analysis.",
+    "report": "Render Markdown / JSONL reports.",
+    "demo": "Run a fully offline end-to-end demo on synthetic data.",
+}
+
+
+def _add_validate_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("validate", help=COMMAND_HELP["validate"])
+
+
+def _add_normalize_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("normalize", help=COMMAND_HELP["normalize"])
+
+
+def _add_score_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("score", help=COMMAND_HELP["score"])
+
+
+def _add_align_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("align", help=COMMAND_HELP["align"])
+
+
+def _add_fuse_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("fuse", help=COMMAND_HELP["fuse"])
+
+
+def _add_rescore_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("rescore", help=COMMAND_HELP["rescore"])
+
+
+def _add_calibrate_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("calibrate", help=COMMAND_HELP["calibrate"])
+
+
+def _add_analyze_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("analyze", help=COMMAND_HELP["analyze"])
+
+
+def _add_report_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("report", help=COMMAND_HELP["report"])
+
+
+def _add_demo_args(sub: argparse._SubParsersAction) -> None:
+    sub.add_parser("demo", help=COMMAND_HELP["demo"])
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -29,16 +95,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"hypofuse {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("validate", help="Validate a JSONL manifest file.")
-    sub.add_parser("normalize", help="Normalize reference + hypothesis.")
-    sub.add_parser("score", help="Compute CER / WER over a manifest.")
-    sub.add_parser("align", help="Run multi-hypothesis alignment and print the grid.")
-    sub.add_parser("fuse", help="Fuse an n-best list with the chosen policy.")
-    sub.add_parser("rescore", help="Re-rank an n-best list with an LM.")
-    sub.add_parser("calibrate", help="Apply temperature scaling to per-token scores.")
-    sub.add_parser("analyze", help="Slice-based error analysis.")
-    sub.add_parser("report", help="Render Markdown / JSONL reports.")
-    sub.add_parser("demo", help="Run a fully offline end-to-end demo on synthetic data.")
+    _add_validate_args(sub)
+    _add_normalize_args(sub)
+    _add_score_args(sub)
+    _add_align_args(sub)
+    _add_fuse_args(sub)
+    _add_rescore_args(sub)
+    _add_calibrate_args(sub)
+    _add_analyze_args(sub)
+    _add_report_args(sub)
+    _add_demo_args(sub)
     return parser
 
 
