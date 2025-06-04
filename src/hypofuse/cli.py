@@ -15,6 +15,7 @@ from pathlib import Path
 
 from hypofuse import __version__
 from hypofuse.confidence import temperature_scale
+from hypofuse.exceptions import HypofuseError
 from hypofuse.fixtures import FixtureConfig, as_manifest_dicts, generate_fixture
 from hypofuse.fusion import FusionConfig, fuse
 from hypofuse.manifests.jsonl import read_manifest, write_manifest
@@ -49,7 +50,10 @@ COMMAND_HELP: dict[str, str] = {
 
 
 def _add_validate_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("validate", help=COMMAND_HELP["validate"])
+    p = sub.add_parser("validate", help=COMMAND_HELP["validate"])
+    p.add_argument("path", type=str, help="Path to the JSONL manifest.")
+    p.add_argument("--schema", type=str, default=None, help="Expected schema name.")
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_normalize_args(sub: argparse._SubParsersAction) -> None:
@@ -109,12 +113,25 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
-    try:
-        rows = read_manifest(args.path)
-    except Exception as exc:
-        print(f"validation failed: {exc}", file=sys.stderr)
+    path = Path(args.path)
+    if not path.exists():
+        print(f"hypofuse validate: file not found: {path}", file=sys.stderr)
         return 2
-    print(f"validated {len(rows)} records")
+    try:
+        rows = read_manifest(path)
+    except (HypofuseError, ValueError) as exc:
+        print(f"hypofuse validate: {exc}", file=sys.stderr)
+        return 2
+    if args.schema is not None:
+        for idx, row in enumerate(rows):
+            if row.get("schema") != args.schema:
+                msg = f"row {idx + 1}: expected {args.schema!r}, got {row.get('schema')!r}"
+                print(f"hypofuse validate: {msg}", file=sys.stderr)
+                return 2
+    if args.json:
+        print(json.dumps({"valid": True, "count": len(rows)}))
+    else:
+        print(f"validated {len(rows)} records")
     return 0
 
 
@@ -244,9 +261,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "validate":
-        args.path = _ask_path(args)
-    elif args.command == "normalize":
+    if args.command == "normalize":
         args.reference = input("reference> ")
         args.hypothesis = input("hypothesis> ")
     elif args.command == "score" or args.command == "align":
