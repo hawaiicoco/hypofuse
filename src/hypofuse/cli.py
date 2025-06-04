@@ -57,7 +57,13 @@ def _add_validate_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_normalize_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("normalize", help=COMMAND_HELP["normalize"])
+    p = sub.add_parser("normalize", help=COMMAND_HELP["normalize"])
+    p.add_argument("--reference", required=True, help="Reference text.")
+    p.add_argument("--hypothesis", required=True, help="Hypothesis text.")
+    p.add_argument("--language", default="en", choices=["en", "zh"], help="Language hint.")
+    p.add_argument("--keep-case", action="store_true", help="Disable case folding.")
+    p.add_argument("--keep-punct", action="store_true", help="Keep punctuation.")
+    p.add_argument("--json", action="store_true", help="Emit JSON (default).")
 
 
 def _add_score_args(sub: argparse._SubParsersAction) -> None:
@@ -136,8 +142,16 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_normalize(args: argparse.Namespace) -> int:
-    cfg = NormalizationConfig()
-    ref, hyp = normalize_pair(args.reference, args.hypothesis, cfg)
+    cfg = NormalizationConfig(
+        case_fold=not args.keep_case,
+        strip_punctuation=not args.keep_punct,
+        language_hint=args.language,
+    )
+    try:
+        ref, hyp = normalize_pair(args.reference, args.hypothesis, cfg)
+    except (HypofuseError, ValueError) as exc:
+        print(f"hypofuse normalize: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps({"reference": ref, "hypothesis": hyp}))
     return 0
 
@@ -261,10 +275,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "normalize":
-        args.reference = input("reference> ")
-        args.hypothesis = input("hypothesis> ")
-    elif args.command == "score" or args.command == "align":
+    if args.command == "score" or args.command == "align":
         args.path = _ask_path(args)
     elif args.command == "fuse":
         args.policy = input("policy [majority|score_weighted|lm_weighted]> ") or "majority"
