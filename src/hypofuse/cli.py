@@ -67,7 +67,24 @@ def _add_normalize_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_score_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("score", help=COMMAND_HELP["score"])
+    p = sub.add_parser("score", help=COMMAND_HELP["score"])
+    p.add_argument("--nbest", required=True, help="Path to n-best manifest.")
+    p.add_argument("--reference", required=True, help="Path to reference manifest.")
+    p.add_argument(
+        "--metric",
+        default="both",
+        choices=["cer", "wer", "both"],
+        help="Metric to compute.",
+    )
+    norm = p.add_mutually_exclusive_group()
+    norm.add_argument(
+        "--normalize", action="store_true", dest="do_normalize", help="Normalize (default)."
+    )
+    norm.add_argument(
+        "--no-normalize", action="store_false", dest="do_normalize", help="Skip normalization."
+    )
+    p.set_defaults(do_normalize=True)
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_align_args(sub: argparse._SubParsersAction) -> None:
@@ -159,25 +176,43 @@ def _cmd_normalize(args: argparse.Namespace) -> int:
 def _cmd_score(args: argparse.Namespace) -> int:
     from hypofuse.alignment import character_error_rate, word_error_rate
 
-    rows = read_manifest(args.path)
-    cer_vals = []
-    wer_vals = []
-    refs = {r["utterance_id"]: r["text"] for r in rows if r["schema"] == "hypofuse.reference"}
-    for r in rows:
+    nbest_path = Path(args.nbest)
+    ref_path = Path(args.reference)
+    for label, p in [("nbest", nbest_path), ("reference", ref_path)]:
+        if not p.exists():
+            print(f"hypofuse score: {label} file not found: {p}", file=sys.stderr)
+            return 2
+    nbest_rows = read_manifest(nbest_path)
+    ref_rows = read_manifest(ref_path)
+    refs = {r["utterance_id"]: r["text"] for r in ref_rows if r["schema"] == "hypofuse.reference"}
+    cer_vals: list[float] = []
+    wer_vals: list[float] = []
+    for r in nbest_rows:
         if r["schema"] != "hypofuse.nbest":
             continue
-        if r["utterance_id"] not in refs:
+        uid = r["utterance_id"]
+        if uid not in refs:
             continue
-        ref_text = refs[r["utterance_id"]]
+        ref_text = refs[uid]
         hyp_text = r["hypotheses"][0]["text"] if r["hypotheses"] else ""
+        if args.do_normalize:
+            from hypofuse.normalize import normalize
+
+            ref_text = normalize(ref_text)
+            hyp_text = normalize(hyp_text)
         cer_vals.append(character_error_rate(ref_text, hyp_text))
         wer_vals.append(word_error_rate(ref_text.split(), hyp_text.split()))
     if not cer_vals:
-        print("no scored pairs", file=sys.stderr)
+        print("hypofuse score: no matched utterance ids", file=sys.stderr)
         return 2
     avg_cer = sum(cer_vals) / len(cer_vals)
     avg_wer = sum(wer_vals) / len(wer_vals)
-    print(json.dumps({"cer": avg_cer, "wer": avg_wer, "n": len(cer_vals)}))
+    result: dict[str, float | int] = {"n": len(cer_vals)}
+    if args.metric in ("cer", "both"):
+        result["cer"] = avg_cer
+    if args.metric in ("wer", "both"):
+        result["wer"] = avg_wer
+    print(json.dumps(result))
     return 0
 
 
@@ -275,7 +310,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "score" or args.command == "align":
+    if args.command == "align":
         args.path = _ask_path(args)
     elif args.command == "fuse":
         args.policy = input("policy [majority|score_weighted|lm_weighted]> ") or "majority"
