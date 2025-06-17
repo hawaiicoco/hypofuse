@@ -88,7 +88,9 @@ def _add_score_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_align_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("align", help=COMMAND_HELP["align"])
+    p = sub.add_parser("align", help=COMMAND_HELP["align"])
+    p.add_argument("--nbest", required=True, help="Path to n-best manifest.")
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_fuse_args(sub: argparse._SubParsersAction) -> None:
@@ -217,7 +219,11 @@ def _cmd_score(args: argparse.Namespace) -> int:
 
 
 def _cmd_align(args: argparse.Namespace) -> int:
-    rows = read_manifest(args.path)
+    nbest_path = Path(args.nbest)
+    if not nbest_path.exists():
+        print(f"hypofuse align: file not found: {nbest_path}", file=sys.stderr)
+        return 2
+    rows = read_manifest(nbest_path)
     by_uid: dict[str, list[list[str]]] = {}
     for r in rows:
         if r["schema"] != "hypofuse.nbest":
@@ -225,6 +231,9 @@ def _cmd_align(args: argparse.Namespace) -> int:
         by_uid.setdefault(r["utterance_id"], []).append(
             [h["tokens"] for h in r.get("hypotheses", []) if "tokens" in h]
         )
+    if not by_uid:
+        print("hypofuse align: no n-best rows found", file=sys.stderr)
+        return 2
     for uid, groups in by_uid.items():
         grid = progressive_align(groups)
         print(json.dumps({"utterance_id": uid, "width": grid.width, "depth": grid.depth}))
@@ -310,9 +319,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "align":
-        args.path = _ask_path(args)
-    elif args.command == "fuse":
+    if args.command == "fuse":
         args.policy = input("policy [majority|score_weighted|lm_weighted]> ") or "majority"
         args.path = _ask_path(args)
     elif args.command == "calibrate":
