@@ -228,7 +228,8 @@ def _cmd_align(args: argparse.Namespace) -> int:
     for r in rows:
         if r["schema"] != "hypofuse.nbest":
             continue
-        by_uid.setdefault(r["utterance_id"], []).append(
+        # One manifest row carries the whole n-best list, so extend (not append).
+        by_uid.setdefault(r["utterance_id"], []).extend(
             [h["tokens"] for h in r.get("hypotheses", []) if "tokens" in h]
         )
     if not by_uid:
