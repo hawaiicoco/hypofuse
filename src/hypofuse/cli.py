@@ -94,7 +94,21 @@ def _add_align_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_fuse_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("fuse", help=COMMAND_HELP["fuse"])
+    p = sub.add_parser("fuse", help=COMMAND_HELP["fuse"])
+    p.add_argument("--nbest", required=True, help="Path to n-best manifest.")
+    p.add_argument(
+        "--policy",
+        default="majority",
+        choices=["majority", "score_weighted", "lm_weighted"],
+        help="Fusion policy.",
+    )
+    p.add_argument(
+        "--tie-break",
+        default="lexicographic",
+        choices=["lexicographic", "first"],
+        help="Tie-breaking strategy.",
+    )
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_rescore_args(sub: argparse._SubParsersAction) -> None:
@@ -242,21 +256,36 @@ def _cmd_align(args: argparse.Namespace) -> int:
 
 
 def _cmd_fuse(args: argparse.Namespace) -> int:
-    rows = read_manifest(args.path)
-    cfg = FusionConfig(policy=args.policy)
+    nbest_path = Path(args.nbest)
+    if not nbest_path.exists():
+        print(f"hypofuse fuse: file not found: {nbest_path}", file=sys.stderr)
+        return 2
+    rows = read_manifest(nbest_path)
+    cfg = FusionConfig(policy=args.policy, tie_break=args.tie_break)
     by_uid: dict[str, list[list[str]]] = {}
     for r in rows:
         if r["schema"] != "hypofuse.nbest":
             continue
-        by_uid.setdefault(r["utterance_id"], []).append(
+        by_uid.setdefault(r["utterance_id"], []).extend(
             [h["tokens"] for h in r.get("hypotheses", []) if "tokens" in h]
         )
+    if not by_uid:
+        print("hypofuse fuse: no n-best rows found", file=sys.stderr)
+        return 2
     for uid, hyps in by_uid.items():
         if not hyps:
             continue
         grid = progressive_align(hyps)
         result = fuse(grid, config=cfg)
-        print(json.dumps({"utterance_id": uid, "tokens": list(result.tokens)}))
+        print(
+            json.dumps(
+                {
+                    "utterance_id": uid,
+                    "tokens": list(result.tokens),
+                    "confidences": list(result.confidences),
+                }
+            )
+        )
     return 0
 
 
@@ -320,10 +349,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "fuse":
-        args.policy = input("policy [majority|score_weighted|lm_weighted]> ") or "majority"
-        args.path = _ask_path(args)
-    elif args.command == "calibrate":
+    if args.command == "calibrate":
         args.scores = input("scores (comma-separated)> ")
         try:
             args.temperature = float(input("temperature> ") or "1.0")
