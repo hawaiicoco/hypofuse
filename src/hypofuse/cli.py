@@ -112,7 +112,16 @@ def _add_fuse_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_rescore_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("rescore", help=COMMAND_HELP["rescore"])
+    p = sub.add_parser("rescore", help=COMMAND_HELP["rescore"])
+    p.add_argument("--nbest", required=True, help="Path to n-best manifest.")
+    lm = p.add_mutually_exclusive_group(required=True)
+    lm.add_argument("--arpa", help="Path to ARPA language model file.")
+    lm.add_argument("--corpus", help="Path to text corpus (one sentence per line).")
+    p.add_argument("--order", type=int, default=3, help="N-gram order for corpus training.")
+    p.add_argument("--lm-weight", type=float, default=0.5, help="LM weight for fusion.")
+    p.add_argument("--acoustic-weight", type=float, default=1.0, help="Acoustic weight for fusion.")
+    p.add_argument("--top", type=int, default=1, help="Number of top hypotheses to show.")
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_calibrate_args(sub: argparse._SubParsersAction) -> None:
@@ -290,8 +299,66 @@ def _cmd_fuse(args: argparse.Namespace) -> int:
 
 
 def _cmd_rescore(args: argparse.Namespace) -> int:
-    print("rescore: not yet wired in stub", file=sys.stderr)
-    return 1
+    from hypofuse.ngram import NgramLM
+    from hypofuse.rescore import ScoredHypothesis, rescore_nbest
+
+    nbest_path = Path(args.nbest)
+    if not nbest_path.exists():
+        print(f"hypofuse rescore: file not found: {nbest_path}", file=sys.stderr)
+        return 2
+    if args.arpa is not None:
+        arpa_path = Path(args.arpa)
+        if not arpa_path.exists():
+            print(f"hypofuse rescore: file not found: {arpa_path}", file=sys.stderr)
+            return 2
+        lm = NgramLM.from_arpa(arpa_path.read_text(encoding="utf-8"))
+    else:
+        corpus_path = Path(args.corpus)
+        if not corpus_path.exists():
+            print(f"hypofuse rescore: file not found: {corpus_path}", file=sys.stderr)
+            return 2
+        sentences = [
+            line.split()
+            for line in corpus_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not sentences:
+            print("hypofuse rescore: empty corpus", file=sys.stderr)
+            return 2
+        lm = NgramLM.train(sentences, order=args.order)
+    rows = read_manifest(nbest_path)
+    all_results: list[dict[str, object]] = []
+    for r in rows:
+        if r["schema"] != "hypofuse.nbest":
+            continue
+        acoustic = float(r.get("acoustic_log10", 0.0))
+        hyps = [
+            ScoredHypothesis.from_tokens(h["tokens"], acoustic_log10=acoustic)
+            for h in r.get("hypotheses", [])
+            if "tokens" in h
+        ]
+        if not hyps:
+            continue
+        ranked = rescore_nbest(hyps, lm, args.lm_weight, args.acoustic_weight)
+        top_k = ranked[: args.top]
+        all_results.append(
+            {
+                "utterance_id": r["utterance_id"],
+                "hypotheses": [
+                    {
+                        "text": h.text,
+                        "acoustic_log10": h.acoustic_log10,
+                        "lm_log10": h.lm_log10,
+                    }
+                    for h in top_k
+                ],
+            }
+        )
+    if not all_results:
+        print("hypofuse rescore: no n-best rows found", file=sys.stderr)
+        return 2
+    print(json.dumps(all_results))
+    return 0
 
 
 def _cmd_calibrate(args: argparse.Namespace) -> int:
