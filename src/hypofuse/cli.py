@@ -125,7 +125,18 @@ def _add_rescore_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_calibrate_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("calibrate", help=COMMAND_HELP["calibrate"])
+    p = sub.add_parser("calibrate", help=COMMAND_HELP["calibrate"])
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument("--scores", help="Comma-separated scores.")
+    src.add_argument("--scores-file", help="Path to file with one score per line.")
+    p.add_argument("--temperature", type=float, default=1.0, help="Temperature parameter.")
+    p.add_argument(
+        "--method",
+        default="temperature",
+        choices=["temperature", "piecewise"],
+        help="Calibration method.",
+    )
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_analyze_args(sub: argparse._SubParsersAction) -> None:
@@ -362,8 +373,30 @@ def _cmd_rescore(args: argparse.Namespace) -> int:
 
 
 def _cmd_calibrate(args: argparse.Namespace) -> int:
-    scores = [float(s) for s in args.scores.split(",")]
-    out = temperature_scale(scores, temperature=args.temperature)
+    raw = args.scores
+    if raw is None:
+        p = Path(args.scores_file)
+        if not p.exists():
+            print(f"hypofuse calibrate: file not found: {p}", file=sys.stderr)
+            return 2
+        raw = p.read_text(encoding="utf-8").strip().replace("\n", ",")
+    if not raw or not raw.strip():
+        print("hypofuse calibrate: empty scores list", file=sys.stderr)
+        return 2
+    try:
+        scores = [float(s) for s in raw.split(",") if s.strip()]
+    except ValueError as exc:
+        print(f"hypofuse calibrate: non-numeric input: {exc}", file=sys.stderr)
+        return 2
+    if not scores:
+        print("hypofuse calibrate: empty scores list", file=sys.stderr)
+        return 2
+    if args.method == "temperature":
+        out = temperature_scale(scores, temperature=args.temperature)
+    else:
+        from hypofuse.confidence import piecewise_calibrate
+
+        out = piecewise_calibrate(scores, [0.0], [1.0], [0.0])
     print(json.dumps(out))
     return 0
 
@@ -416,13 +449,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "calibrate":
-        args.scores = input("scores (comma-separated)> ")
-        try:
-            args.temperature = float(input("temperature> ") or "1.0")
-        except ValueError:
-            args.temperature = 1.0
-    elif args.command == "demo":
+    if args.command == "demo":
         args.out = input("output dir> ") or "."
     return handler(args)
 
