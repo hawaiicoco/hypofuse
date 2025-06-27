@@ -140,7 +140,17 @@ def _add_calibrate_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_analyze_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("analyze", help=COMMAND_HELP["analyze"])
+    p = sub.add_parser("analyze", help=COMMAND_HELP["analyze"])
+    p.add_argument("--nbest", required=True, help="Path to n-best manifest.")
+    p.add_argument("--reference", required=True, help="Path to reference manifest.")
+    p.add_argument(
+        "--slice-by",
+        default="speaker_group",
+        choices=["speaker_group", "intent_domain", "noise_db", "duration_s"],
+        help="Field to slice by.",
+    )
+    p.add_argument("--buckets", type=int, default=3, help="Number of duration buckets.")
+    p.add_argument("--json", action="store_true", help="Emit JSON output.")
 
 
 def _add_report_args(sub: argparse._SubParsersAction) -> None:
@@ -402,8 +412,68 @@ def _cmd_calibrate(args: argparse.Namespace) -> int:
 
 
 def _cmd_analyze(args: argparse.Namespace) -> int:
-    print("analyze: not yet wired in stub", file=sys.stderr)
-    return 1
+    from hypofuse.analysis import (
+        UtteranceScore,
+        slice_by_duration,
+        slice_by_field,
+        slice_metrics,
+    )
+
+    nbest_path = Path(args.nbest)
+    ref_path = Path(args.reference)
+    for label, p in [("nbest", nbest_path), ("reference", ref_path)]:
+        if not p.exists():
+            print(f"hypofuse analyze: {label} file not found: {p}", file=sys.stderr)
+            return 2
+    nbest_rows = read_manifest(nbest_path)
+    ref_rows = read_manifest(ref_path)
+    ref_map = {r["utterance_id"]: r for r in ref_rows if r["schema"] == "hypofuse.reference"}
+    items: list[UtteranceScore] = []
+    for r in nbest_rows:
+        if r["schema"] != "hypofuse.nbest":
+            continue
+        uid = r["utterance_id"]
+        if uid not in ref_map:
+            continue
+        rr = ref_map[uid]
+        hyp_tokens = tuple(r["hypotheses"][0]["tokens"]) if r.get("hypotheses") else ()
+        ref_tokens = tuple(rr["text"].split())
+        items.append(
+            UtteranceScore(
+                utterance_id=uid,
+                reference=ref_tokens,
+                hypothesis=hyp_tokens,
+                speaker_group=rr.get("speaker_group", ""),
+                intent_domain=rr.get("intent_domain", ""),
+                noise_db=float(rr.get("noise_db", 0.0)),
+                duration_s=float(rr.get("duration_s", 0.0)),
+            )
+        )
+    if not items:
+        print("hypofuse analyze: no matched utterances", file=sys.stderr)
+        return 2
+    if args.slice_by == "duration_s":
+        boundaries = tuple(round(i * 12.0 / args.buckets, 1) for i in range(1, args.buckets))
+        slices = slice_by_duration(items, boundaries)
+    else:
+        field_map = {
+            "speaker_group": "speaker_group",
+            "intent_domain": "intent_domain",
+            "noise_db": "noise",
+        }
+        slices = slice_by_field(items, field_map[args.slice_by])
+    metrics = slice_metrics(slices)
+    if args.json:
+        print(
+            json.dumps(
+                [{"key": m.key, "count": m.count, "cer": m.cer, "wer": m.wer} for m in metrics]
+            )
+        )
+    else:
+        print(f"{'Slice':<20} {'Count':>6} {'CER':>8} {'WER':>8}")
+        for m in metrics:
+            print(f"{m.key:<20} {m.count:>6} {m.cer:>8.4f} {m.wer:>8.4f}")
+    return 0
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
