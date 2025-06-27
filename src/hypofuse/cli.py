@@ -154,7 +154,17 @@ def _add_analyze_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_report_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("report", help=COMMAND_HELP["report"])
+    p = sub.add_parser("report", help=COMMAND_HELP["report"])
+    p.add_argument("--nbest", required=True, help="Path to n-best manifest.")
+    p.add_argument("--reference", required=True, help="Path to reference manifest.")
+    p.add_argument(
+        "--format",
+        default="markdown",
+        choices=["markdown", "jsonl"],
+        help="Output format.",
+    )
+    p.add_argument("--out", type=str, default=None, help="Output file path (default: stdout).")
+    p.add_argument("--compare", type=str, default=None, help="System ID for comparison.")
 
 
 def _add_demo_args(sub: argparse._SubParsersAction) -> None:
@@ -477,8 +487,60 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
-    print("report: not yet wired in stub", file=sys.stderr)
-    return 1
+    from hypofuse.analysis import (
+        UtteranceScore,
+        report_to_jsonl,
+        report_to_markdown,
+        slice_by_field,
+        slice_metrics,
+    )
+
+    nbest_path = Path(args.nbest)
+    ref_path = Path(args.reference)
+    for label, p in [("nbest", nbest_path), ("reference", ref_path)]:
+        if not p.exists():
+            print(f"hypofuse report: {label} file not found: {p}", file=sys.stderr)
+            return 2
+    nbest_rows = read_manifest(nbest_path)
+    ref_rows = read_manifest(ref_path)
+    ref_map = {r["utterance_id"]: r for r in ref_rows if r["schema"] == "hypofuse.reference"}
+    items: list[UtteranceScore] = []
+    for r in nbest_rows:
+        if r["schema"] != "hypofuse.nbest":
+            continue
+        uid = r["utterance_id"]
+        if uid not in ref_map:
+            continue
+        rr = ref_map[uid]
+        hyp_tokens = tuple(r["hypotheses"][0]["tokens"]) if r.get("hypotheses") else ()
+        ref_tokens = tuple(rr["text"].split())
+        items.append(
+            UtteranceScore(
+                utterance_id=uid,
+                reference=ref_tokens,
+                hypothesis=hyp_tokens,
+                speaker_group=rr.get("speaker_group", ""),
+                intent_domain=rr.get("intent_domain", ""),
+                noise_db=float(rr.get("noise_db", 0.0)),
+                duration_s=float(rr.get("duration_s", 0.0)),
+            )
+        )
+    if not items:
+        print("hypofuse report: no matched utterances", file=sys.stderr)
+        return 2
+    slices = slice_by_field(items, "speaker_group")
+    metrics = slice_metrics(slices)
+    comparisons: list[object] = []
+    if args.format == "markdown":
+        text = report_to_markdown(metrics, comparisons)
+    else:
+        text = report_to_jsonl(metrics, comparisons)
+    if args.out is not None:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"wrote report to {args.out}")
+    else:
+        print(text)
+    return 0
 
 
 def _cmd_demo(args: argparse.Namespace) -> int:
