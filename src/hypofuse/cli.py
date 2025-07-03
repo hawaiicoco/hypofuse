@@ -1,8 +1,14 @@
 """Command-line interface for hypofuse.
 
-Every subcommand exits with a non-zero code on invalid input. ``demo`` is
-fully offline; it generates a small synthetic dataset and runs the
-post-processing pipeline end-to-end.
+Exit-code policy:
+
+* ``0`` -- success
+* ``2`` -- user error (missing file, invalid manifest, bad flag value,
+  :class:`~hypofuse.exceptions.HypofuseError` subclass, or ``ValueError``)
+
+Unexpected exceptions may propagate with a traceback. ``demo`` is fully
+offline; it generates a small synthetic dataset and runs the post-processing
+pipeline end-to-end.
 """
 
 from __future__ import annotations
@@ -617,22 +623,16 @@ _HANDLERS = {
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
-    # Inject shared args based on command.
     args = parser.parse_args(argv)
     handler = _HANDLERS.get(args.command)
     if handler is None:
         parser.print_help()
         return 2
-    # Build per-subcommand args.
-    return _dispatch(args, handler)
-
-
-def _dispatch(args: argparse.Namespace, handler) -> int:
-    return handler(args)
-
-
-def _ask_path(args: argparse.Namespace) -> str:
-    return input("manifest path> ")
+    try:
+        return handler(args)
+    except (HypofuseError, ValueError) as exc:
+        print(f"hypofuse {args.command}: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
