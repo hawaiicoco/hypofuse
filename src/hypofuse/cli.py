@@ -168,7 +168,11 @@ def _add_report_args(sub: argparse._SubParsersAction) -> None:
 
 
 def _add_demo_args(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("demo", help=COMMAND_HELP["demo"])
+    p = sub.add_parser("demo", help=COMMAND_HELP["demo"])
+    p.add_argument("--out", type=str, default=".", help="Output directory.")
+    p.add_argument("--utterances", type=int, default=5, help="Number of utterances.")
+    p.add_argument("--n-best", type=int, default=3, help="N-best list size.")
+    p.add_argument("--seed", type=int, default=0, help="Random seed.")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -544,13 +548,56 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_demo(args: argparse.Namespace) -> int:
-    cfg = FixtureConfig(n_utterances=5, n_best=3, seed=0)
+    from hypofuse.alignment import character_error_rate, word_error_rate
+
+    cfg = FixtureConfig(n_utterances=args.utterances, n_best=args.n_best, seed=args.seed)
     fx = generate_fixture(cfg)
     rows = as_manifest_dicts(fx)
     target = Path(args.out)
     target.mkdir(parents=True, exist_ok=True)
-    write_manifest(target / "manifest.jsonl", rows)
-    print(f"wrote {target / 'manifest.jsonl'} with {len(rows)} rows")
+    nbest_rows = [r for r in rows if r["schema"] == "hypofuse.nbest"]
+    ref_rows = [r for r in rows if r["schema"] == "hypofuse.reference"]
+    write_manifest(target / "nbest.jsonl", nbest_rows)
+    write_manifest(target / "reference.jsonl", ref_rows)
+    refs = {r["utterance_id"]: r["text"] for r in ref_rows}
+    cer_vals: list[float] = []
+    wer_vals: list[float] = []
+    for r in nbest_rows:
+        uid = r["utterance_id"]
+        if uid not in refs:
+            continue
+        hyp_text = r["hypotheses"][0]["text"] if r["hypotheses"] else ""
+        cer_vals.append(character_error_rate(refs[uid], hyp_text))
+        wer_vals.append(word_error_rate(refs[uid].split(), hyp_text.split()))
+    avg_cer = sum(cer_vals) / len(cer_vals) if cer_vals else 0.0
+    avg_wer = sum(wer_vals) / len(wer_vals) if wer_vals else 0.0
+    by_uid: dict[str, list[list[str]]] = {}
+    for r in nbest_rows:
+        by_uid.setdefault(r["utterance_id"], []).extend(
+            [h["tokens"] for h in r.get("hypotheses", []) if "tokens" in h]
+        )
+    fused_count = 0
+    for hyps in by_uid.values():
+        if not hyps:
+            continue
+        grid = progressive_align(hyps)
+        fuse(grid, config=FusionConfig())
+        fused_count += 1
+    report_lines = [
+        "# Demo Report",
+        "",
+        f"Utterances: {args.utterances}",
+        f"N-best: {args.n_best}",
+        f"Seed: {args.seed}",
+        "",
+        f"Mean CER: {avg_cer:.4f}",
+        f"Mean WER: {avg_wer:.4f}",
+        "",
+        f"Fused {fused_count} utterances.",
+    ]
+    (target / "report.md").write_text("\n".join(report_lines), encoding="utf-8")
+    print(f"demo: wrote manifests and report to {target}")
+    print(f"  CER={avg_cer:.4f} WER={avg_wer:.4f} fused={fused_count}")
     return 0
 
 
@@ -581,8 +628,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _dispatch(args: argparse.Namespace, handler) -> int:
-    if args.command == "demo":
-        args.out = input("output dir> ") or "."
     return handler(args)
 
 
