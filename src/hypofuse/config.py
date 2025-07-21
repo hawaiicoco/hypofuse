@@ -74,3 +74,10 @@ def dump_config(config: Any, path: Path | str) -> None:
     """Write a frozen dataclass to JSON with indent=2, sorted keys, trailing newline."""
     text = json.dumps(to_dict(config), indent=2, sort_keys=True)
     Path(path).write_text(text + "\n", encoding="utf-8")
+
+
+def config_hash(config: Any) -> str:
+    """Content-based hash via ``stable_hash`` over the canonical dict."""
+    from hypofuse.util import stable_hash
+
+    return stable_hash(to_dict(config))
