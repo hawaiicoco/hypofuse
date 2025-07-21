@@ -15,6 +15,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from hypofuse.alignment import (
+    DEL,
+    INS,
     SUB,
     AlignmentOp,
     character_error_rate,
@@ -32,6 +34,19 @@ class UtteranceScore:
     noise_db: float = 0.0
     duration_s: float = 0.0
     intent_domain: str = ""
+
+    def error_breakdown(self) -> tuple[int, int, int]:
+        """Return (substitutions, deletions, insertions) from the stored alignment ops."""
+        ops = edit_alignment(self.reference, self.hypothesis).ops
+        subs = sum(1 for op in ops if op.op == SUB)
+        dels = sum(1 for op in ops if op.op == DEL)
+        ins = sum(1 for op in ops if op.op == INS)
+        return (subs, dels, ins)
+
+    @property
+    def is_perfect(self) -> bool:
+        """True when reference and hypothesis tokens are identical."""
+        return self.reference == self.hypothesis
 
 
 @dataclass(frozen=True)
