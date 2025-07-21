@@ -7,7 +7,9 @@ configs.
 
 from __future__ import annotations
 
+import json
 from dataclasses import MISSING, fields, is_dataclass
+from pathlib import Path
 from typing import Any, TypeVar, get_type_hints
 
 T = TypeVar("T")
@@ -60,3 +62,15 @@ def from_dict(cls: type[T], data: dict[str, Any]) -> T:
             value = from_dict(hint, value)
         kwargs[name] = value
     return cls(**kwargs)
+
+
+def load_config(cls: type[T], path: Path | str) -> T:
+    """Load a frozen dataclass from a JSON file."""
+    text = Path(path).read_text(encoding="utf-8")
+    return from_dict(cls, json.loads(text))
+
+
+def dump_config(config: Any, path: Path | str) -> None:
+    """Write a frozen dataclass to JSON with indent=2, sorted keys, trailing newline."""
+    text = json.dumps(to_dict(config), indent=2, sort_keys=True)
+    Path(path).write_text(text + "\n", encoding="utf-8")
