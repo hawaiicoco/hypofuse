@@ -8,7 +8,8 @@ configs.
 from __future__ import annotations
 
 import json
-from dataclasses import MISSING, fields, is_dataclass
+import math
+from dataclasses import MISSING, dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any, TypeVar, get_type_hints
 
@@ -102,3 +103,51 @@ def merge_configs(base: T, overrides: dict[str, Any]) -> T:
             raise ValueError(f"unknown path: {path}")
         target[parts[-1]] = value
     return from_dict(cls, data)
+
+
+@dataclass(frozen=True)
+class HypofuseRunConfig:
+    """Top-level configuration composing per-module configs for a run."""
+
+    normalization: dict[str, Any]
+    fusion: dict[str, Any]
+    fixture: dict[str, Any]
+    lm_order: int = 3
+    lm_weight: float = 0.5
+    seed: int = 0
+
+    def validate(self) -> None:
+        """Raise ``ValueError`` on invalid hyper-parameters."""
+        if self.lm_order < 1:
+            raise ValueError("lm_order must be >= 1")
+        if not math.isfinite(self.lm_weight):
+            raise ValueError("lm_weight must be finite")
+        if self.seed < 0:
+            raise ValueError("seed must be >= 0")
+
+    @classmethod
+    def from_parts(
+        cls,
+        normalization: Any | None = None,
+        fusion: Any | None = None,
+        fixture: Any | None = None,
+        **kwargs: Any,
+    ) -> HypofuseRunConfig:
+        """Build from real or stand-in config instances.
+
+        Missing parts default to the project defaults.  Each part is
+        serialized with :func:`to_dict` so the result is a plain dict.
+        """
+        from hypofuse.fixtures import FixtureConfig
+        from hypofuse.fusion import FusionConfig
+        from hypofuse.normalize import NormalizationConfig
+
+        norm_obj = NormalizationConfig() if normalization is None else normalization
+        fusion_obj = FusionConfig() if fusion is None else fusion
+        fixture_obj = FixtureConfig() if fixture is None else fixture
+        return cls(
+            normalization=to_dict(norm_obj),
+            fusion=to_dict(fusion_obj),
+            fixture=to_dict(fixture_obj),
+            **kwargs,
+        )
