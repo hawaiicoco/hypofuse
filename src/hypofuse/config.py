@@ -81,3 +81,24 @@ def config_hash(config: Any) -> str:
     from hypofuse.util import stable_hash
 
     return stable_hash(to_dict(config))
+
+
+def merge_configs(base: T, overrides: dict[str, Any]) -> T:
+    """Return a new frozen instance with dotted-path overrides applied.
+
+    The base is never mutated; nested fields are addressed via
+    ``"inner.field"`` dotted paths.
+    """
+    cls = type(base)
+    data = to_dict(base)
+    for path, value in overrides.items():
+        parts = path.split(".")
+        target = data
+        for part in parts[:-1]:
+            if not isinstance(target, dict) or part not in target:
+                raise ValueError(f"unknown path: {path}")
+            target = target[part]
+        if not isinstance(target, dict) or parts[-1] not in target:
+            raise ValueError(f"unknown path: {path}")
+        target[parts[-1]] = value
+    return from_dict(cls, data)
