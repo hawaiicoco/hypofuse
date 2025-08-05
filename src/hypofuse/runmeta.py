@@ -7,8 +7,9 @@ into report rows for provenance tracking.
 
 from __future__ import annotations
 
+import json
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
@@ -74,3 +75,23 @@ def capture(seed: int, config: Any | None = None, label: str = "") -> RunMetadat
         created_from=label,
         torch_version=_torch_version(),
     )
+
+
+def to_dict(meta: RunMetadata) -> dict[str, Any]:
+    """Convert RunMetadata to a plain dict."""
+    return asdict(meta)
+
+
+def from_dict(data: dict[str, Any]) -> RunMetadata:
+    """Reconstruct RunMetadata from a dict."""
+    return RunMetadata(**data)
+
+
+def to_json(meta: RunMetadata) -> str:
+    """Serialize RunMetadata to JSON with sorted keys."""
+    return json.dumps(to_dict(meta), sort_keys=True, indent=2, ensure_ascii=False)
+
+
+def from_json(text: str) -> RunMetadata:
+    """Deserialize RunMetadata from JSON."""
+    return from_dict(json.loads(text))
