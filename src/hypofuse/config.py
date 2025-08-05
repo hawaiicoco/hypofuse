@@ -151,3 +151,13 @@ class HypofuseRunConfig:
             fixture=to_dict(fixture_obj),
             **kwargs,
         )
+
+
+def describe(config: Any) -> str:
+    """Return a multi-line ``field: value`` summary of a dataclass instance."""
+    if not is_dataclass(config) or isinstance(config, type):
+        raise TypeError("describe expects a dataclass instance")
+    lines: list[str] = []
+    for f in fields(config):
+        lines.append(f"{f.name}: {getattr(config, f.name)!r}")
+    return "\n".join(lines)
