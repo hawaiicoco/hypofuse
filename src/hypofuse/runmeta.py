@@ -7,11 +7,13 @@ into report rows for provenance tracking.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -132,3 +134,16 @@ def verify(rows: Sequence[dict[str, Any]], meta: RunMetadata) -> bool:
         if row["run"] != expected:
             return False
     return True
+
+
+def fingerprint_files(paths: Sequence[Path | str]) -> dict[str, str]:
+    """Map each path to a sha256 hex digest for input provenance.
+
+    Keys are the path strings as given; the returned dict is sorted.
+    """
+    result: dict[str, str] = {}
+    for path in paths:
+        p = Path(path)
+        digest = hashlib.sha256(p.read_bytes()).hexdigest()
+        result[str(path)] = digest
+    return dict(sorted(result.items()))
