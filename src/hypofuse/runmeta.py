@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Any
@@ -111,3 +112,23 @@ def to_json(meta: RunMetadata) -> str:
 def from_json(text: str) -> RunMetadata:
     """Deserialize RunMetadata from JSON."""
     return from_dict(json.loads(text))
+
+
+def embed(report_rows: Sequence[dict[str, Any]], meta: RunMetadata) -> list[dict[str, Any]]:
+    """Return copies of *report_rows* with a ``"run"`` key added.
+
+    The input rows are never mutated.
+    """
+    meta_dict = to_dict(meta)
+    return [{**row, "run": meta_dict} for row in report_rows]
+
+
+def verify(rows: Sequence[dict[str, Any]], meta: RunMetadata) -> bool:
+    """Return True if every row carries a matching ``"run"`` block."""
+    expected = to_dict(meta)
+    for row in rows:
+        if "run" not in row:
+            return False
+        if row["run"] != expected:
+            return False
+    return True
