@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -41,7 +42,12 @@ def _torch_version() -> str | None:
 
 @dataclass(frozen=True)
 class RunMetadata:
-    """Immutable snapshot of run-time versions and configuration."""
+    """Immutable snapshot of run-time versions and configuration.
+
+    No wall-clock field by default; use :func:`stamp` to add an
+    ISO-8601 UTC string from a caller-supplied datetime so that the
+    artifact stays reproducible.
+    """
 
     hypofuse_version: str
     python_version: str
@@ -51,6 +57,7 @@ class RunMetadata:
     config_hash: str
     created_from: str = ""
     torch_version: str | None = None
+    stamped_at: str | None = None
 
 
 def capture(seed: int, config: Any | None = None, label: str = "") -> RunMetadata:
@@ -75,6 +82,15 @@ def capture(seed: int, config: Any | None = None, label: str = "") -> RunMetadat
         created_from=label,
         torch_version=_torch_version(),
     )
+
+
+def stamp(meta: RunMetadata, when: datetime) -> RunMetadata:
+    """Add an ISO-8601 UTC timestamp from a caller-supplied datetime.
+
+    The caller must supply the datetime so that artifacts stay
+    reproducible; no wall-clock time is read here.
+    """
+    return replace(meta, stamped_at=when.isoformat())
 
 
 def to_dict(meta: RunMetadata) -> dict[str, Any]:
