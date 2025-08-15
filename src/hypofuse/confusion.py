@@ -47,6 +47,23 @@ class ConfusionNetwork:
             )
         return out
 
+    def validate(self, tol: float = 1e-6) -> None:
+        """Check posteriors normalize per slot, non-negative, no empty slots.
+
+        Raises ``ValueError`` naming the offending slot index.
+        """
+        if not self.slots:
+            return
+        for idx, slot in enumerate(self.slots):
+            if not slot.arcs:
+                raise ValueError(f"slot {idx} is empty (no arcs)")
+            for arc in slot.arcs:
+                if arc.posterior < 0.0:
+                    raise ValueError(f"slot {idx}: negative posterior {arc.posterior}")
+            total = sum(a.posterior for a in slot.arcs)
+            if abs(total - 1.0) > tol:
+                raise ValueError(f"slot {idx}: posteriors sum to {total}, expected 1.0 (tol={tol})")
+
 
 def build_confusion_network(
     grid: TokenGrid,
