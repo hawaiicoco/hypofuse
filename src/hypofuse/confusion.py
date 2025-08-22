@@ -68,12 +68,18 @@ class ConfusionNetwork:
 def build_confusion_network(
     grid: TokenGrid,
     weights: Sequence[Sequence[float]] | None = None,
+    keep_epsilon: bool = False,
 ) -> ConfusionNetwork:
     """Build a confusion network from an alignment grid.
 
     Each column becomes a slot. Per-slot posteriors are normalized to sum
     to 1 across non-gap tokens. The pivot is the token with the highest
     posterior; ties are broken lexicographically.
+
+    When ``keep_epsilon`` is true, gap/epsilon arcs are included in the
+    arc set with their computed posterior but are never chosen as pivot
+    unless the slot contains no other token. When false (the default),
+    gap tokens are excluded from the arc set entirely.
     """
     n_hyps = grid.depth
     score_grid: list[list[float]] = [[1.0] * n_hyps for _ in range(grid.width)]
@@ -86,7 +92,7 @@ def build_confusion_network(
     for col_idx, column in enumerate(grid.columns):
         counts: dict[Hashable, float] = {}
         for h_idx, token in enumerate(column):
-            if token == GAP:
+            if token == GAP and not keep_epsilon:
                 continue
             w = max(0.0, score_grid[col_idx][h_idx])
             counts[token] = counts.get(token, 0.0) + w
@@ -98,7 +104,8 @@ def build_confusion_network(
         for token, count in counts.items():
             arcs.append(Arc(token, count / total))
         arcs.sort(key=lambda a: (-a.posterior, str(a.token)))
-        pivot = arcs[0].token
+        non_gap = [a for a in arcs if a.token != GAP]
+        pivot = non_gap[0].token if non_gap else arcs[0].token
         slots.append(ConfusionSlot(pivot=str(pivot), arcs=tuple(arcs)))
     return ConfusionNetwork(slots=tuple(slots))
 
