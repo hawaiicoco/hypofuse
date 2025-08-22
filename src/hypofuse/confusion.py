@@ -111,11 +111,13 @@ def build_confusion_network(
 
 
 def minimal_cut_one_best(network: ConfusionNetwork) -> tuple[str, ...]:
-    """Pick the pivot from each slot.
+    """Pick the pivot from each slot (minimum-cost path over the slot chain).
 
-    With arcs already normalized per slot, the minimum-cut 1-best is just
-    the pivot sequence. Provided as an explicit function so downstream
-    tooling has a stable call.
+    Because the confusion network is a chain with no cross-slot
+    constraints, the minimum-cost path (cost = -log posterior) decomposes
+    into independent per-slot argmax choices. The per-slot pivot is
+    therefore identical to the global minimal-cut 1-best. Provided as an
+    explicit function so downstream tooling has a stable call.
     """
     return network.one_best()
 
