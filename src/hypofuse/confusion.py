@@ -168,13 +168,32 @@ def confusion_from_json(payload: str) -> ConfusionNetwork:
     return ConfusionNetwork(slots=tuple(slots))
 
 
+def rover_diff(
+    network: ConfusionNetwork,
+    rover_tokens: Sequence[str],
+) -> list[int]:
+    """Return positions where one-best diverges from rover tokens.
+
+    Compares token-by-token. Positions beyond the shorter sequence are
+    reported as mismatches. Null/gap tokens are compared literally:
+    ``"*"`` equals ``"*"`` and nothing else.
+    """
+    best = list(network.one_best())
+    rover = list(rover_tokens)
+    mismatches: list[int] = []
+    for i in range(max(len(best), len(rover))):
+        if i >= len(best) or i >= len(rover) or best[i] != rover[i]:
+            mismatches.append(i)
+    return mismatches
+
+
 def consistent_with_rover(
     network: ConfusionNetwork,
     rover_tokens: Sequence[str],
     pivot_tie_break: str = "lexicographic",
 ) -> bool:
     """Check that the confusion network's 1-best matches ROVER under matching rules."""
-    return list(network.one_best()) == list(rover_tokens)
+    return len(rover_diff(network, rover_tokens)) == 0
 
 
 def confusion_to_manifest_row(
