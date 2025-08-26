@@ -175,3 +175,53 @@ def consistent_with_rover(
 ) -> bool:
     """Check that the confusion network's 1-best matches ROVER under matching rules."""
     return list(network.one_best()) == list(rover_tokens)
+
+
+def confusion_to_manifest_row(
+    network: ConfusionNetwork,
+    utterance_id: str,
+    system: str = "fusion",
+) -> dict[str, object]:
+    """Produce a ``hypofuse.fusion_run`` manifest row from a confusion network.
+
+    The row is compatible with :func:`manifests.validate.validate_record`.
+    """
+    from hypofuse.manifests import SCHEMA_FUSION_RUN, SCHEMA_VERSION
+
+    tokens = list(network.one_best())
+    confidences: list[float] = []
+    arcs_list: list[dict[str, object]] = []
+    for slot in network.slots:
+        pivot_arc = next(
+            (a for a in slot.arcs if str(a.token) == slot.pivot),
+            slot.arcs[0],
+        )
+        confidences.append(pivot_arc.posterior)
+        arcs_list.append(
+            {
+                "pivot": slot.pivot,
+                "candidates": [[str(a.token), a.posterior] for a in slot.arcs],
+            }
+        )
+    return {
+        "schema": SCHEMA_FUSION_RUN,
+        "schema_version": SCHEMA_VERSION,
+        "utterance_id": utterance_id,
+        "systems": [system],
+        "tokens": tokens,
+        "confidences": confidences,
+        "policy": "confusion",
+        "config_hash": "",
+        "arcs": arcs_list,
+    }
+
+
+def confusion_from_manifest_row(row: dict[str, object]) -> ConfusionNetwork:
+    """Reconstruct a confusion network from a ``hypofuse.fusion_run`` row."""
+    arcs_raw = row.get("arcs", [])
+    slots: list[ConfusionSlot] = []
+    for entry in arcs_raw:
+        pivot = str(entry["pivot"])
+        arcs = tuple(Arc(token=c[0], posterior=float(c[1])) for c in entry["candidates"])
+        slots.append(ConfusionSlot(pivot=pivot, arcs=arcs))
+    return ConfusionNetwork(slots=tuple(slots))
