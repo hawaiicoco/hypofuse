@@ -122,20 +122,46 @@ def minimal_cut_one_best(network: ConfusionNetwork) -> tuple[str, ...]:
     return network.one_best()
 
 
+_CONFUSION_SCHEMA = "hypofuse.confusion"
+_CONFUSION_SCHEMA_VERSION = 1
+
+
 def confusion_to_json(network: ConfusionNetwork) -> str:
-    """Serialize a confusion network deterministically."""
+    """Serialize a confusion network as versioned JSON.
+
+    Output is deterministic: ``sort_keys=True`` and the default separators
+    ensure byte-stable roundtrips.
+    """
     import json
 
-    return json.dumps(network.to_dict(), sort_keys=True, ensure_ascii=False)
+    obj = {
+        "schema": _CONFUSION_SCHEMA,
+        "schema_version": _CONFUSION_SCHEMA_VERSION,
+        "slots": network.to_dict(),
+    }
+    return json.dumps(obj, sort_keys=True, ensure_ascii=False)
 
 
 def confusion_from_json(payload: str) -> ConfusionNetwork:
-    """Parse the JSON form of a confusion network."""
+    """Parse the versioned JSON form of a confusion network.
+
+    Raises ``ValueError`` for missing fields, unknown schema, or
+    unsupported schema version.
+    """
     import json
 
     raw = json.loads(payload)
+    if not isinstance(raw, dict):
+        raise ValueError("expected a JSON object with schema and slots")
+    for key in ("schema", "schema_version", "slots"):
+        if key not in raw:
+            raise ValueError(f"missing required field: {key!r}")
+    if raw["schema"] != _CONFUSION_SCHEMA:
+        raise ValueError(f"unknown schema: {raw['schema']!r}")
+    if raw["schema_version"] != _CONFUSION_SCHEMA_VERSION:
+        raise ValueError(f"unsupported schema_version: {raw['schema_version']!r}")
     slots: list[ConfusionSlot] = []
-    for item in raw:
+    for item in raw["slots"]:
         pivot = str(item["pivot"])
         arcs = tuple(Arc(token=a["token"], posterior=float(a["posterior"])) for a in item["arcs"])
         slots.append(ConfusionSlot(pivot=pivot, arcs=arcs))

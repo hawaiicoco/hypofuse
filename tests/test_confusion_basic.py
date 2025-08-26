@@ -71,3 +71,4 @@ def test_json_round_trip() -> None:
     payload = confusion_to_json(net)
     parsed = confusion_from_json(payload)
     assert parsed.to_dict() == net.to_dict()
+    assert confusion_to_json(parsed) == payload
