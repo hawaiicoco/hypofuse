@@ -271,3 +271,33 @@ def report_to_jsonl(slices: list[SliceMetric], comparisons: Sequence[ComparisonR
             )
         )
     return "\n".join(lines)
+
+
+def corpus_error_rate(scores: Iterable[UtteranceScore], average: str = "micro") -> float:
+    """Aggregate error rate over a corpus.
+
+    ``average="micro"`` computes total errors / total reference tokens
+    (the corpus-level rate).  ``average="macro"`` computes the arithmetic
+    mean of per-utterance error rates.  These differ when utterances
+    have different reference lengths: a short utterance with many errors
+    contributes more to the macro average than to the micro average.
+    """
+    if average not in ("micro", "macro"):
+        raise ValueError(f"unknown average: {average!r}; use 'micro' or 'macro'")
+    items = list(scores)
+    if not items:
+        return 0.0
+    if average == "micro":
+        total_errors = 0
+        total_ref = 0
+        for it in items:
+            align = edit_alignment(it.reference, it.hypothesis)
+            total_errors += align.errors
+            total_ref += align.ref_length
+        if total_ref == 0:
+            return 0.0
+        return total_errors / total_ref
+    if average == "macro":
+        rates = [word_error_rate(list(it.reference), list(it.hypothesis)) for it in items]
+        return statistics.fmean(rates)
+    raise ValueError(f"unknown average: {average!r}; use 'micro' or 'macro'")
