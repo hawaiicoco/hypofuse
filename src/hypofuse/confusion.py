@@ -3,6 +3,14 @@
 A confusion network is a sequence of slots; each slot has an arc set where
 one arc is the "pivot" (the most likely token) and the rest are alternatives.
 Arcs carry normalized posterior probabilities so they sum to 1 per slot.
+
+The posterior estimator is vote mass: each hypothesis contributes equal
+weight (or a caller-supplied weight) to its token in each column, and
+the column total is normalized to 1. The pivot is the highest-posterior
+token with ties broken lexicographically. This follows the ROVER
+framework (Fiscus, 1997) and the confusion-network representation
+described in arXiv:1904.08295 (Mangu et al., finding consensus
+transcriptions for speech recognition).
 """
 
 from __future__ import annotations
@@ -72,9 +80,11 @@ def build_confusion_network(
 ) -> ConfusionNetwork:
     """Build a confusion network from an alignment grid.
 
-    Each column becomes a slot. Per-slot posteriors are normalized to sum
-    to 1 across non-gap tokens. The pivot is the token with the highest
-    posterior; ties are broken lexicographically.
+    Each column becomes a slot. Per-slot posteriors are vote mass: each
+    hypothesis contributes equal weight (or the caller-supplied weight
+    from ``weights``) divided by the column total, normalized to sum to
+    1 across non-gap tokens. The pivot is the highest-posterior token
+    with ties broken lexicographically.
 
     When ``keep_epsilon`` is true, gap/epsilon arcs are included in the
     arc set with their computed posterior but are never chosen as pivot
