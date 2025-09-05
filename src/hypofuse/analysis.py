@@ -137,13 +137,36 @@ def slice_metrics(
 
 def substitution_pairs(
     items: Iterable[UtteranceScore],
+    *,
+    top_n: int | None = None,
+    directional: bool = True,
+    min_count: int = 1,
 ) -> Counter[tuple[str, str]]:
+    """Mine confused token pairs from edit alignment.
+
+    By default every substitution is counted in reference-to-hypothesis
+    order.  Set ``directional=False`` to collapse (a, b) and (b, a) into
+    a single sorted pair.  ``min_count`` drops pairs below the threshold
+    and ``top_n`` keeps only the *n* most frequent pairs (ties broken
+    by count descending, then lexicographic on the key tuple).
+    """
     counts: Counter[tuple[str, str]] = Counter()
     for item in items:
         ops: list[AlignmentOp] = edit_alignment(item.reference, item.hypothesis).ops
         for op in ops:
             if op.op == SUB:
-                counts[(str(op.ref_token), str(op.hyp_token))] += 1
+                ref_tok = str(op.ref_token)
+                hyp_tok = str(op.hyp_token)
+                if directional:
+                    counts[(ref_tok, hyp_tok)] += 1
+                else:
+                    pair = tuple(sorted((ref_tok, hyp_tok)))
+                    counts[pair] += 1
+    if min_count > 1:
+        counts = Counter({k: v for k, v in counts.items() if v >= min_count})
+    if top_n is not None:
+        ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        counts = Counter(dict(ranked[:top_n]))
     return counts
 
 
