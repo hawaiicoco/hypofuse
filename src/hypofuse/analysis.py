@@ -301,3 +301,56 @@ def corpus_error_rate(scores: Iterable[UtteranceScore], average: str = "micro") 
         rates = [word_error_rate(list(it.reference), list(it.hypothesis)) for it in items]
         return statistics.fmean(rates)
     raise ValueError(f"unknown average: {average!r}; use 'micro' or 'macro'")
+
+
+def slice_by_quantiles(
+    scores: Iterable[UtteranceScore],
+    field: str,
+    *,
+    buckets: int = 4,
+) -> dict[str, list[UtteranceScore]]:
+    """Partition *scores* into quantile buckets using nearest-rank edges.
+
+    Edges are derived from the data without scipy.  If all field values
+    are equal, a single ``"all"`` slice is returned.  Each score lands in
+    exactly one bucket.  Raises ``ValueError`` when ``buckets < 1``.
+    """
+    if buckets < 1:
+        raise ValueError("buckets must be >= 1")
+    items = list(scores)
+    if not items:
+        return {}
+    values = [getattr(it, field) for it in items]
+    sorted_vals = sorted(values)
+    n = len(sorted_vals)
+
+    # Nearest-rank edges at evenly spaced positions
+    raw_edges: list[float] = []
+    for i in range(buckets + 1):
+        idx = min(i * n // buckets, n - 1)
+        raw_edges.append(sorted_vals[idx])
+
+    # Deduplicate while preserving order
+    unique_edges: list[float] = []
+    for e in raw_edges:
+        if not unique_edges or e != unique_edges[-1]:
+            unique_edges.append(e)
+
+    if len(unique_edges) <= 1:
+        return {"all": items}
+
+    # Build interval labels
+    labels = [f"q{i}" for i in range(len(unique_edges) - 1)]
+    out: dict[str, list[UtteranceScore]] = {lab: [] for lab in labels}
+
+    # Assign each item: [lo, hi) for all but last; [lo, hi] for last
+    for item, val in zip(items, values, strict=True):
+        for i, lab in enumerate(labels):
+            lo = unique_edges[i]
+            hi = unique_edges[i + 1]
+            in_interval = lo <= val <= hi if i == len(labels) - 1 else lo <= val < hi
+            if in_interval:
+                out[lab].append(item)
+                break
+
+    return out
