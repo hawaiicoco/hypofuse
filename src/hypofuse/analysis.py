@@ -141,6 +141,7 @@ def substitution_pairs(
     top_n: int | None = None,
     directional: bool = True,
     min_count: int = 1,
+    level: str = "word",
 ) -> Counter[tuple[str, str]]:
     """Mine confused token pairs from edit alignment.
 
@@ -149,10 +150,18 @@ def substitution_pairs(
     a single sorted pair.  ``min_count`` drops pairs below the threshold
     and ``top_n`` keeps only the *n* most frequent pairs (ties broken
     by count descending, then lexicographic on the key tuple).
+    ``level="char"`` joins all tokens into a character sequence before
+    alignment, which is useful for CJK languages.
     """
     counts: Counter[tuple[str, str]] = Counter()
     for item in items:
-        ops: list[AlignmentOp] = edit_alignment(item.reference, item.hypothesis).ops
+        if level == "char":
+            ref_seq = tuple("".join(item.reference))
+            hyp_seq = tuple("".join(item.hypothesis))
+        else:
+            ref_seq = item.reference
+            hyp_seq = item.hypothesis
+        ops: list[AlignmentOp] = edit_alignment(ref_seq, hyp_seq).ops
         for op in ops:
             if op.op == SUB:
                 ref_tok = str(op.ref_token)
