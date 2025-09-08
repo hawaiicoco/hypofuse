@@ -253,6 +253,11 @@ def _quantile(values: Sequence[float], q: float) -> float:
     return s[lo] + (s[hi] - s[lo]) * frac
 
 
+def _escape_markdown(text: str) -> str:
+    """Escape pipe, backslash and newline for safe markdown table cells."""
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "\\n")
+
+
 def report_to_markdown(slices: list[SliceMetric], comparisons: Sequence[ComparisonRow]) -> str:
     """Render an error-analysis report as Markdown."""
     lines: list[str] = ["# Error Analysis Report", ""]
@@ -260,7 +265,8 @@ def report_to_markdown(slices: list[SliceMetric], comparisons: Sequence[Comparis
     lines.append("| Slice | Count | CER | WER |")
     lines.append("|---|---|---|---|")
     for s in slices:
-        lines.append(f"| {html.escape(s.key)} | {s.count} | {s.cer:.4f} | {s.wer:.4f} |")
+        key = _escape_markdown(html.escape(s.key))
+        lines.append(f"| {key} | {s.count} | {s.cer:.4f} | {s.wer:.4f} |")
     lines.append("")
     lines.append("## System comparisons (paired bootstrap, 95% CI)")
     lines.append("| Pair | n | Δ CER | CER CI | Δ WER | WER CI |")
@@ -268,8 +274,9 @@ def report_to_markdown(slices: list[SliceMetric], comparisons: Sequence[Comparis
     for c in comparisons:
         cer_ci = f"[{c.cer_ci_low:.4f}, {c.cer_ci_high:.4f}]"
         wer_ci = f"[{c.wer_ci_low:.4f}, {c.wer_ci_high:.4f}]"
+        pair = _escape_markdown(f"{c.system_a} vs {c.system_b}")
         lines.append(
-            f"| {c.system_a} vs {c.system_b} | {c.n_pairs} | "
+            f"| {pair} | {c.n_pairs} | "
             f"{c.delta_cer:.4f} | {cer_ci} | {c.delta_wer:.4f} | {wer_ci} |"
         )
     return "\n".join(lines)
