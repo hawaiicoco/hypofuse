@@ -304,7 +304,15 @@ def report_to_jsonl(slices: list[SliceMetric], comparisons: Sequence[ComparisonR
     for s in slices:
         lines.append(
             json.dumps(
-                {"kind": "slice", "key": s.key, "count": s.count, "cer": s.cer, "wer": s.wer},
+                {
+                    "kind": "slice",
+                    "schema": "hypofuse.report",
+                    "schema_version": 1,
+                    "key": s.key,
+                    "count": s.count,
+                    "cer": s.cer,
+                    "wer": s.wer,
+                },
                 sort_keys=True,
             )
         )
@@ -313,6 +321,8 @@ def report_to_jsonl(slices: list[SliceMetric], comparisons: Sequence[ComparisonR
             json.dumps(
                 {
                     "kind": "comparison",
+                    "schema": "hypofuse.report",
+                    "schema_version": 1,
                     "system_a": c.system_a,
                     "system_b": c.system_b,
                     "delta_cer": c.delta_cer,
