@@ -23,6 +23,7 @@ from hypofuse.alignment import (
     edit_alignment,
     word_error_rate,
 )
+from hypofuse.util import seeded
 
 
 @dataclass(frozen=True)
@@ -333,6 +334,43 @@ def corpus_error_rate(scores: Iterable[UtteranceScore], average: str = "micro") 
         rates = [word_error_rate(list(it.reference), list(it.hypothesis)) for it in items]
         return statistics.fmean(rates)
     raise ValueError(f"unknown average: {average!r}; use 'micro' or 'macro'")
+
+
+def paired_bootstrap_p_value(
+    a_scores: Sequence[UtteranceScore],
+    b_scores: Sequence[UtteranceScore],
+    *,
+    seed: int = 0,
+    iterations: int = 1000,
+) -> float:
+    """One-sided p-value that system A is not better than system B.
+
+    Resamples utterance indices with replacement ``iterations`` times,
+    counts how often the mean WER difference (B - A) is <= 0 (i.e. A's
+    advantage does not hold in the resample), and applies add-one
+    smoothing::
+
+        p = (count_le + 1) / (iterations + 1)
+
+    A small p-value indicates A is reliably better.  Deterministic
+    via ``hypofuse.util.seeded``.  Raises ``ValueError`` when
+    ``iterations < 1`` or the score lists differ in length.
+    """
+    if iterations < 1:
+        raise ValueError("iterations must be >= 1")
+    if len(a_scores) != len(b_scores):
+        raise ValueError("score lists must have the same length")
+    rng = seeded(seed)
+    n = len(a_scores)
+    wer_a = [word_error_rate(list(it.reference), list(it.hypothesis)) for it in a_scores]
+    wer_b = [word_error_rate(list(it.reference), list(it.hypothesis)) for it in b_scores]
+    count_le = 0
+    for _ in range(iterations):
+        idxs = [rng.randrange(n) for _ in range(n)]
+        mean_diff = sum(wer_b[i] - wer_a[i] for i in idxs) / n
+        if mean_diff <= 0:
+            count_le += 1
+    return (count_le + 1) / (iterations + 1)
 
 
 def slice_by_quantiles(
