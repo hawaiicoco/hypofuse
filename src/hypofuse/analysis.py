@@ -424,3 +424,51 @@ def slice_by_quantiles(
                 break
 
     return out
+
+
+@dataclass(frozen=True)
+class GroupBiasRow:
+    """One row in a group bias table."""
+
+    group: str
+    count: int
+    wer: float
+    wer_ci_low: float
+    wer_ci_high: float
+
+
+def group_bias_table(
+    scores: Sequence[UtteranceScore],
+    field: str,
+    *,
+    n_bootstrap: int = 1000,
+    confidence: float = 0.95,
+    seed: int = 0,
+) -> list[GroupBiasRow]:
+    """Per-group error rate with bootstrap CI, sorted by WER descending.
+
+    Groups are formed by slicing *scores* on *field* (same fields as
+    :func:`slice_by_field`).  The CI uses percentile bootstrap over
+    utterance-level WER within each group.  Rows are sorted by WER
+    descending, then by group name for deterministic ordering.
+    """
+    slices = slice_by_field(list(scores), field)
+    rng = seeded(seed)
+    rows: list[GroupBiasRow] = []
+    for key, items in slices.items():
+        if not items:
+            rows.append(GroupBiasRow(key, 0, 0.0, 0.0, 0.0))
+            continue
+        wers = [word_error_rate(list(it.reference), list(it.hypothesis)) for it in items]
+        point_wer = statistics.fmean(wers)
+        bootstrap_means: list[float] = []
+        n = len(wers)
+        for _ in range(n_bootstrap):
+            sample = [wers[rng.randrange(n)] for _ in range(n)]
+            bootstrap_means.append(statistics.fmean(sample))
+        alpha = (1 - confidence) / 2
+        ci_lo = _quantile(bootstrap_means, alpha)
+        ci_hi = _quantile(bootstrap_means, 1 - alpha)
+        rows.append(GroupBiasRow(key, len(items), point_wer, ci_lo, ci_hi))
+    rows.sort(key=lambda r: (-r.wer, r.group))
+    return rows
