@@ -11,7 +11,7 @@ import math
 import random
 import statistics
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from hypofuse.alignment import (
@@ -258,9 +258,23 @@ def _escape_markdown(text: str) -> str:
     return text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "\\n")
 
 
-def report_to_markdown(slices: list[SliceMetric], comparisons: Sequence[ComparisonRow]) -> str:
-    """Render an error-analysis report as Markdown."""
+def report_to_markdown(
+    slices: list[SliceMetric],
+    comparisons: Sequence[ComparisonRow],
+    *,
+    meta: Mapping[str, object] | None = None,
+) -> str:
+    """Render an error-analysis report as Markdown.
+
+    When *meta* is given, a ``## Run`` section with sorted key-value
+    lines is inserted before the slices table.
+    """
     lines: list[str] = ["# Error Analysis Report", ""]
+    if meta is not None:
+        lines.append("## Run")
+        for key in sorted(meta):
+            lines.append(f"{key}: {meta[key]}")
+        lines.append("")
     lines.append("## Slices")
     lines.append("| Slice | Count | CER | WER |")
     lines.append("|---|---|---|---|")
