@@ -84,57 +84,47 @@ def progressive_align(
             pair_alignments=(),
         )
     pair_alignments: list[Alignment] = []
+    # Rows already merged into the grid; ``grid_columns[c][r]`` is the cell of
+    # hypothesis ``r`` in column ``c``. Every column always holds one cell per
+    # merged hypothesis, so the grid stays rectangular.
     grid_columns: list[list[Hashable]] = [[tok] for tok in anchors[0]]
-    back_pointers: list[list[tuple[int, str]]] = [[(i, "MATCH") for i, _ in enumerate(anchors[0])]]
-    # Subsequent hypotheses are aligned to the running grid.
+    back_pointers: list[tuple[tuple[int, str], ...]] = [
+        tuple((i, "MATCH") for i in range(len(anchors[0])))
+    ]
     for hyp_idx in range(1, len(anchors)):
-        grid_tokens: list[Hashable] = []
-        for col in grid_columns:
-            first = col[0]
-            grid_tokens.append(first if first != GAP else "*")
+        # Align the incoming hypothesis against the pivot row of the grid.
+        grid_tokens = [col[0] for col in grid_columns]
         pair = edit_alignment(grid_tokens, anchors[hyp_idx])
         pair_alignments.append(pair)
-        new_columns: list[list[Hashable]] = []
-        new_pointers: list[list[tuple[int, str]]] = []
-        for col in grid_columns:
-            new_columns.append(list(col))
-        for _src_idx in range(len(anchors[hyp_idx])):
-            new_pointers.append([])
-        # Walk pair alignment to merge the new hypothesis into the grid.
+        moving = anchors[hyp_idx]
+        merged: list[list[Hashable]] = []
+        remap: list[int] = [-1] * len(grid_columns)
+        pointers: list[tuple[int, str]] = []
         g_pos = h_pos = 0
         for op in pair.ops:
             if op.op in {MATCH, SUB}:
-                if g_pos < len(new_columns):
-                    new_columns[g_pos].append(anchors[hyp_idx][h_pos])
-                    new_pointers[h_pos].append((g_pos, op.op))
-                else:
-                    new_columns.append([anchors[hyp_idx][h_pos]])
-                    new_pointers[h_pos].append((len(new_columns) - 1, op.op))
+                remap[g_pos] = len(merged)
+                merged.append([*grid_columns[g_pos], moving[h_pos]])
+                pointers.append((len(merged) - 1, op.op))
                 g_pos += 1
                 h_pos += 1
             elif op.op == INS:
-                new_columns.append([anchors[hyp_idx][h_pos]])
-                new_pointers[h_pos].append((len(new_columns) - 1, "INS"))
+                # Inserted tokens keep their position in the sequence: earlier
+                # rows simply have no token there.
+                merged.append([GAP] * hyp_idx + [moving[h_pos]])
+                pointers.append((len(merged) - 1, "INS"))
                 h_pos += 1
             elif op.op == DEL:
-                if g_pos < len(new_columns):
-                    new_columns[g_pos].append(GAP)
+                remap[g_pos] = len(merged)
+                merged.append([*grid_columns[g_pos], GAP])
                 g_pos += 1
             else:
                 raise AlignmentError(f"unknown op {op.op}")
-        # Ensure each existing grid column has the right number of entries.
-        while len(new_pointers) < len(anchors[hyp_idx]):
-            new_pointers.append((len(grid_columns), "DEL"))
-        grid_columns = new_columns
-        # Convert each new_pointers[h_pos] (list of (col, op)) into a tuple.
-        flat: list[tuple[int, str]] = []
-        for h_pos in range(len(anchors[hyp_idx])):
-            entries = new_pointers[h_pos]
-            if not entries:
-                flat.append((len(grid_columns) - 1, "DEL"))
-            else:
-                flat.append(entries[0])
-        back_pointers.append(tuple(flat))
+        if g_pos != len(grid_columns) or h_pos != len(moving):
+            raise AlignmentError("alignment did not consume both sequences")
+        back_pointers = [tuple((remap[col], label) for col, label in row) for row in back_pointers]
+        back_pointers.append(tuple(pointers))
+        grid_columns = merged
     columns = tuple(tuple(col) for col in grid_columns)
     return TokenGrid(
         columns=columns,
