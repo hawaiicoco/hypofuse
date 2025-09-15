@@ -9,8 +9,9 @@ output is deterministic for the same inputs.
 
 from __future__ import annotations
 
-from collections.abc import Hashable, Iterable, Sequence
-from dataclasses import dataclass
+import math
+from collections.abc import Hashable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 
 from hypofuse.exceptions import AlignmentError
 
@@ -32,9 +33,35 @@ class AlignmentOp:
 
 
 @dataclass(frozen=True)
+class AlignmentCosts:
+    """Cost model for edit alignment.
+
+    The default values reproduce unit-cost Levenshtein distance exactly.
+    ``token_costs`` maps ``(ref_token, hyp_token)`` pairs to custom
+    substitution costs (e.g. homophones may be cheaper). Pairs not in
+    the map fall back to ``substitution``.
+    """
+
+    substitution: float = 1.0
+    insertion: float = 1.0
+    deletion: float = 1.0
+    token_costs: Mapping[tuple[Hashable, Hashable], float] = field(default_factory=dict)
+
+    def validate(self) -> None:
+        """Reject negative or non-finite cost values."""
+        for name in ("substitution", "insertion", "deletion"):
+            v = getattr(self, name)
+            if not math.isfinite(v) or v < 0:
+                raise ValueError(f"{name} must be finite and non-negative, got {v}")
+        for pair, cost in self.token_costs.items():
+            if not math.isfinite(cost) or cost < 0:
+                raise ValueError(f"token_costs{pair!r} must be finite and non-negative, got {cost}")
+
+
+@dataclass(frozen=True)
 class Alignment:
     ops: tuple[AlignmentOp, ...]
-    score: int
+    score: float
 
     @property
     def ref_length(self) -> int:
@@ -52,33 +79,55 @@ class Alignment:
         return [{"op": op.op, "ref": op.ref_token, "hyp": op.hyp_token} for op in self.ops]
 
 
-def _safe_tokens(tokens: Sequence[Hashable] | Iterable[Hashable]) -> tuple[Hashable, ...]:
+def _safe_tokens(
+    tokens: Sequence[Hashable] | Iterable[Hashable],
+) -> tuple[Hashable, ...]:
     if isinstance(tokens, str):
         raise AlignmentError("tokens must not be a string; pass a list/tuple")
     return tuple(tokens)
 
 
+def _sub_cost(
+    costs: AlignmentCosts | None,
+    ref_tok: Hashable,
+    hyp_tok: Hashable,
+) -> float:
+    """Return the substitution cost for a specific token pair."""
+    if costs is None:
+        return 1.0
+    return costs.token_costs.get((ref_tok, hyp_tok), costs.substitution)
+
+
 def edit_alignment(
     reference: Sequence[Hashable],
     hypothesis: Sequence[Hashable],
+    *,
+    costs: AlignmentCosts | None = None,
 ) -> Alignment:
     """Compute the edit alignment between two token sequences.
 
     Returns an :class:`Alignment` with one :class:`AlignmentOp` per cell in
     the optimal path, walking from start to end of both sequences.
+
+    When *costs* is provided, the DP uses the specified substitution,
+    insertion and deletion weights instead of the default unit cost.
     """
+    if costs is not None:
+        costs.validate()
     ref = _safe_tokens(reference)
     hyp = _safe_tokens(hypothesis)
     n, m = len(ref), len(hyp)
     if n == 0 and m == 0:
         return Alignment(ops=(), score=0)
-    dp = [[0] * (m + 1) for _ in range(n + 1)]
+    c_ins = costs.insertion if costs else 1.0
+    c_del = costs.deletion if costs else 1.0
+    dp: list[list[float]] = [[0.0] * (m + 1) for _ in range(n + 1)]
     bp: list[list[str]] = [[""] * (m + 1) for _ in range(n + 1)]
     for i in range(1, n + 1):
-        dp[i][0] = i
+        dp[i][0] = dp[i - 1][0] + c_del
         bp[i][0] = DEL
     for j in range(1, m + 1):
-        dp[0][j] = j
+        dp[0][j] = dp[0][j - 1] + c_ins
         bp[0][j] = INS
     for i in range(1, n + 1):
         for j in range(1, m + 1):
@@ -86,9 +135,10 @@ def edit_alignment(
                 dp[i][j] = dp[i - 1][j - 1]
                 bp[i][j] = MATCH
             else:
-                sub = dp[i - 1][j - 1] + 1
-                ins = dp[i][j - 1] + 1
-                dele = dp[i - 1][j] + 1
+                sc = _sub_cost(costs, ref[i - 1], hyp[j - 1])
+                sub = dp[i - 1][j - 1] + sc
+                ins = dp[i][j - 1] + c_ins
+                dele = dp[i - 1][j] + c_del
                 best = min(sub, ins, dele)
                 if best == sub:
                     dp[i][j] = sub
