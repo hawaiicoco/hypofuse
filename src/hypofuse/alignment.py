@@ -199,3 +199,30 @@ def alignment_to_markdown(alignment: Alignment, max_rows: int = 20) -> str:
     if len(alignment.ops) > max_rows:
         lines.append(f"| ... ({len(alignment.ops) - max_rows} more) ... | | |")
     return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class ErrorBreakdown:
+    """Counts of each error type from an alignment."""
+
+    substitutions: int
+    insertions: int
+    deletions: int
+    total: int
+    ref_length: int
+    hyp_length: int
+
+
+def error_breakdown(alignment: Alignment) -> ErrorBreakdown:
+    """Return an :class:`ErrorBreakdown` for the given alignment."""
+    subs = sum(1 for op in alignment.ops if op.op == SUB)
+    ins = sum(1 for op in alignment.ops if op.op == INS)
+    dels = sum(1 for op in alignment.ops if op.op == DEL)
+    return ErrorBreakdown(
+        substitutions=subs,
+        insertions=ins,
+        deletions=dels,
+        total=subs + ins + dels,
+        ref_length=alignment.ref_length,
+        hyp_length=alignment.hyp_length,
+    )
