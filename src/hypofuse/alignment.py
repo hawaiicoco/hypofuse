@@ -103,6 +103,7 @@ def edit_alignment(
     hypothesis: Sequence[Hashable],
     *,
     costs: AlignmentCosts | None = None,
+    band: int | None = None,
 ) -> Alignment:
     """Compute the edit alignment between two token sequences.
 
@@ -111,26 +112,42 @@ def edit_alignment(
 
     When *costs* is provided, the DP uses the specified substitution,
     insertion and deletion weights instead of the default unit cost.
+
+    When *band* is not ``None``, the DP is restricted to cells where
+    ``|i - j| <= band`` (Sakoe-Chiba band). This is an approximation
+    when the band is narrower than the optimal path width. Raises
+    :class:`AlignmentError` when the band is too narrow to connect
+    the start and end (``abs(n - m) > band``).
     """
     if costs is not None:
         costs.validate()
+    if band is not None and band < 0:
+        raise AlignmentError("band must be non-negative")
     ref = _safe_tokens(reference)
     hyp = _safe_tokens(hypothesis)
     n, m = len(ref), len(hyp)
     if n == 0 and m == 0:
         return Alignment(ops=(), score=0)
+    if band is not None and abs(n - m) > band:
+        raise AlignmentError(f"band={band} too narrow for lengths {n} and {m}")
     c_ins = costs.insertion if costs else 1.0
     c_del = costs.deletion if costs else 1.0
-    dp: list[list[float]] = [[0.0] * (m + 1) for _ in range(n + 1)]
+    _INF = float("inf")
+    dp: list[list[float]] = [[_INF] * (m + 1) for _ in range(n + 1)]
     bp: list[list[str]] = [[""] * (m + 1) for _ in range(n + 1)]
+    dp[0][0] = 0.0
     for i in range(1, n + 1):
-        dp[i][0] = dp[i - 1][0] + c_del
-        bp[i][0] = DEL
+        if band is None or i <= band:
+            dp[i][0] = dp[i - 1][0] + c_del
+            bp[i][0] = DEL
     for j in range(1, m + 1):
-        dp[0][j] = dp[0][j - 1] + c_ins
-        bp[0][j] = INS
+        if band is None or j <= band:
+            dp[0][j] = dp[0][j - 1] + c_ins
+            bp[0][j] = INS
     for i in range(1, n + 1):
-        for j in range(1, m + 1):
+        j_lo = max(1, i - band) if band is not None else 1
+        j_hi = min(m, i + band) if band is not None else m
+        for j in range(j_lo, j_hi + 1):
             if ref[i - 1] == hyp[j - 1]:
                 dp[i][j] = dp[i - 1][j - 1]
                 bp[i][j] = MATCH
