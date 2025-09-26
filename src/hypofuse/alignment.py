@@ -287,3 +287,56 @@ def symmetric_error_rate(reference: Sequence[str], hypothesis: Sequence[str]) ->
     if mean_len == 0:
         return 0.0
     return align.errors / mean_len
+
+
+def alignment_to_jsonl_row(
+    alignment: Alignment,
+    utterance_id: str,
+    system: str = "",
+) -> dict[str, object]:
+    """Serialize an alignment to a JSONL-compatible dict.
+
+    The row includes a ``schema`` and ``schema_version`` field
+    for forward compatibility.
+    """
+    return {
+        "schema": "hypofuse.alignment",
+        "schema_version": 1,
+        "utterance_id": utterance_id,
+        "system": system,
+        "score": alignment.score,
+        "ref_length": alignment.ref_length,
+        "hyp_length": alignment.hyp_length,
+        "errors": alignment.errors,
+        "ops": alignment.to_dict(),
+    }
+
+
+def alignment_from_jsonl_row(row: dict[str, object]) -> Alignment:
+    """Deserialize an alignment from a JSONL-compatible dict.
+
+    Raises ``ValueError`` for unknown schema, wrong version, or
+    missing required fields.
+    """
+    schema = row.get("schema")
+    if schema != "hypofuse.alignment":
+        raise ValueError(f"unknown schema: {schema!r}")
+    version = row.get("schema_version")
+    if version != 1:
+        raise ValueError(f"unsupported schema_version: {version!r}")
+    required = (
+        "utterance_id",
+        "score",
+        "ref_length",
+        "hyp_length",
+        "errors",
+        "ops",
+    )
+    for key in required:
+        if key not in row:
+            raise ValueError(f"missing required field: {key!r}")
+    ops_data = row["ops"]
+    if not isinstance(ops_data, list):
+        raise ValueError("ops must be a list")
+    ops = tuple(AlignmentOp(op=d["op"], ref_token=d["ref"], hyp_token=d["hyp"]) for d in ops_data)
+    return Alignment(ops=ops, score=float(row["score"]))
