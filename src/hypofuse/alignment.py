@@ -226,3 +226,49 @@ def error_breakdown(alignment: Alignment) -> ErrorBreakdown:
         ref_length=alignment.ref_length,
         hyp_length=alignment.hyp_length,
     )
+
+
+@dataclass(frozen=True)
+class CorpusRates:
+    """Aggregate error rates over a corpus of utterances.
+
+    ``micro`` is total errors / total reference length.
+    ``macro`` is the unweighted mean of per-utterance rates.
+    """
+
+    micro: float
+    macro: float
+    n: int
+
+
+def corpus_error_rates(
+    pairs: Sequence[tuple[Sequence[str], Sequence[str]]],
+    level: str = "word",
+) -> CorpusRates:
+    """Compute micro and macro error rates over a corpus.
+
+    *pairs* is a sequence of ``(reference, hypothesis)`` pairs.
+    For ``level="word"`` each element is a sequence of word
+    tokens; for ``level="char"`` each element is a string.
+
+    Raises ``ValueError`` on empty input.
+    """
+    if not pairs:
+        raise ValueError("at least one pair is required")
+    if level not in ("word", "char"):
+        raise ValueError(f"unknown level: {level!r}")
+    total_errors = 0
+    total_ref_len = 0
+    per_utterance_rates: list[float] = []
+    for ref, hyp in pairs:
+        align = edit_alignment(list(ref), list(hyp))
+        total_errors += align.errors
+        total_ref_len += align.ref_length
+        if align.ref_length == 0:
+            rate = 0.0 if align.hyp_length == 0 else 1.0
+        else:
+            rate = align.errors / align.ref_length
+        per_utterance_rates.append(rate)
+    micro = total_errors / total_ref_len if total_ref_len > 0 else 0.0
+    macro = sum(per_utterance_rates) / len(per_utterance_rates)
+    return CorpusRates(micro=micro, macro=macro, n=len(pairs))
