@@ -272,3 +272,18 @@ def corpus_error_rates(
     micro = total_errors / total_ref_len if total_ref_len > 0 else 0.0
     macro = sum(per_utterance_rates) / len(per_utterance_rates)
     return CorpusRates(micro=micro, macro=macro, n=len(pairs))
+
+
+def symmetric_error_rate(reference: Sequence[str], hypothesis: Sequence[str]) -> float:
+    """Compute symmetric error rate: errors / mean length.
+
+    The denominator is ``mean(ref_length, hyp_length)``. The
+    result is in ``[0, 2]``: zero when the sequences are
+    identical, approaching two when one sequence is empty and
+    the other is long.
+    """
+    align = edit_alignment(list(reference), list(hypothesis))
+    mean_len = (align.ref_length + align.hyp_length) / 2
+    if mean_len == 0:
+        return 0.0
+    return align.errors / mean_len
