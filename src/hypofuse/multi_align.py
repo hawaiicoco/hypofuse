@@ -181,6 +181,32 @@ def grid_coverage(grid: TokenGrid) -> list[int]:
     return result
 
 
+def grid_is_consistent(grid: TokenGrid) -> bool:
+    """Verify grid columns, back-pointers and row reconstruction agree.
+
+    Returns ``True`` when every back-pointer references a valid
+    column, the pointer counts match the hypothesis lengths, and
+    :func:`grid_row` reconstructs the original tokens.
+    """
+    for h_idx in range(grid.depth):
+        bp = grid.back_pointers[h_idx]
+        hyp = grid.hypotheses[h_idx]
+        if len(bp) != len(hyp):
+            return False
+        prev_col = -1
+        for col_idx, _op in bp:
+            if col_idx < 0 or col_idx >= grid.width:
+                return False
+            if col_idx < prev_col:
+                return False
+            prev_col = col_idx
+        row = grid_row(grid, h_idx)
+        non_gap = tuple(t for t in row if t != GAP)
+        if non_gap != hyp:
+            return False
+    return True
+
+
 def grid_determinism_check(hypotheses: Sequence[Sequence[str]]) -> bool:
     """Verify grid construction is permutation-invariant under ``left`` pivot."""
     a = progressive_align(hypotheses)
