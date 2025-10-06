@@ -66,16 +66,25 @@ def _column_for(align: Alignment, left: bool) -> Iterable[int]:
 def progressive_align(
     hypotheses: Sequence[Sequence[Hashable]],
     pivot: str = "left",
+    order: str = "given",
 ) -> TokenGrid:
     """Progressively align hypotheses left-to-right, anchored on the pivot.
 
     The pivot specifies which side of the *first* pair stays fixed.
     ``pivot="left"`` means the first hypothesis is the anchor (its positions
     become the grid's columns).
+
+    When *order* is ``"sorted"``, hypotheses are sorted by their token
+    content before alignment, making the result invariant to input
+    permutation. The default ``"given"`` preserves the input order.
     """
+    if order not in ("given", "sorted"):
+        raise ValueError(f"unknown order: {order!r}")
     if not hypotheses:
         raise AlignmentError("at least one hypothesis is required")
     anchors = [_as_tuple(h) for h in hypotheses]
+    if order == "sorted":
+        anchors = sorted(anchors, key=lambda h: tuple(repr(t) for t in h))
     for h_idx, hyp in enumerate(anchors):
         for tok in hyp:
             if tok == GAP:
