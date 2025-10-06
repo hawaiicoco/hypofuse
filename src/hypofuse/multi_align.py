@@ -150,6 +150,24 @@ def grid_row(grid: TokenGrid, hypothesis_index: int) -> tuple[Hashable, ...]:
     return tuple(row)
 
 
+def grid_coverage(grid: TokenGrid) -> list[int]:
+    """Count non-gap cells per hypothesis row in the grid.
+
+    Returns a list of length ``grid.depth`` where each element
+    is the number of columns in which that hypothesis has a
+    non-gap token. The sum equals the total number of tokens
+    across all inputs.
+    """
+    result: list[int] = []
+    for h_idx in range(grid.depth):
+        count = 0
+        for col in grid.columns:
+            if h_idx < len(col) and col[h_idx] != GAP:
+                count += 1
+        result.append(count)
+    return result
+
+
 def grid_determinism_check(hypotheses: Sequence[Sequence[str]]) -> bool:
     """Verify grid construction is permutation-invariant under ``left`` pivot."""
     a = progressive_align(hypotheses)
