@@ -1,0 +1,127 @@
+"""Strict manifest row <-> dataclass conversion.
+
+Every ``*_from_row`` function accepts a plain dict (as read from JSONL)
+and returns the corresponding frozen dataclass with strict type checks.
+Unknown keys are rejected by default (``allow_extra=False``).  Missing
+optional keys are filled from dataclass defaults.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+from hypofuse.exceptions import SchemaError
+from hypofuse.manifests import SCHEMA_NBEST
+from hypofuse.manifests.nbest import NBestHypothesis, NBestList
+
+_META_KEYS = frozenset({"schema", "schema_version"})
+
+
+def _require(row: Mapping[str, Any], key: str, expected: type) -> Any:
+    """Return *row[key]* after asserting presence and exact type."""
+    if key not in row:
+        raise SchemaError(f"missing required field: {key}")
+    val = row[key]
+    if expected is int:
+        if not isinstance(val, int) or isinstance(val, bool):
+            raise SchemaError(f"field {key} expected int, got {type(val).__name__}")
+    elif expected is float:
+        if isinstance(val, bool) or not isinstance(val, (int, float)):
+            raise SchemaError(f"field {key} expected float, got {type(val).__name__}")
+    elif not isinstance(val, expected):
+        raise SchemaError(f"field {key} expected {expected.__name__}, got {type(val).__name__}")
+    return val
+
+
+def _optional(row: Mapping[str, Any], key: str, expected: type, default: Any) -> Any:
+    """Return *row[key]* with type check, or *default* when absent."""
+    if key not in row:
+        return default
+    val = row[key]
+    if val is None and default is None:
+        return None
+    if expected is int:
+        if not isinstance(val, int) or isinstance(val, bool):
+            raise SchemaError(f"field {key} expected int, got {type(val).__name__}")
+    elif expected is float:
+        if isinstance(val, bool) or not isinstance(val, (int, float)):
+            raise SchemaError(f"field {key} expected float, got {type(val).__name__}")
+        return float(val)
+    elif not isinstance(val, expected):
+        raise SchemaError(f"field {key} expected {expected.__name__}, got {type(val).__name__}")
+    return val
+
+
+def _reject_extra(row: Mapping[str, Any], known: frozenset[str]) -> None:
+    extra = set(row.keys()) - known - _META_KEYS
+    if extra:
+        raise SchemaError(f"unknown keys: {sorted(extra)}")
+
+
+_NBEST_KEYS = frozenset({"utterance_id", "system", "language", "hypotheses", "audio_path"})
+
+_HYP_KEYS = frozenset(
+    {
+        "rank",
+        "text",
+        "tokens",
+        "posteriors",
+        "acoustic_log10",
+        "lm_log10",
+        "start_time",
+        "end_time",
+    }
+)
+
+
+def _hyp_from_dict(d: Any, *, idx: int) -> NBestHypothesis:
+    if not isinstance(d, dict):
+        raise SchemaError(f"hypotheses[{idx}] expected dict, got {type(d).__name__}")
+    extra = set(d.keys()) - _HYP_KEYS
+    if extra:
+        raise SchemaError(f"hypotheses[{idx}]: unknown keys: {sorted(extra)}")
+    rank = _require(d, "rank", int)
+    text = _require(d, "text", str)
+    tokens_raw = _optional(d, "tokens", list, [])
+    for i, t in enumerate(tokens_raw):
+        if not isinstance(t, str):
+            raise SchemaError(f"hypotheses[{idx}].tokens[{i}] expected str")
+    post_raw = _optional(d, "posteriors", list, [])
+    for i, p in enumerate(post_raw):
+        if not isinstance(p, (int, float)) or isinstance(p, bool):
+            raise SchemaError(f"hypotheses[{idx}].posteriors[{i}] expected float")
+    return NBestHypothesis(
+        rank=rank,
+        text=text,
+        tokens=tuple(tokens_raw),
+        posteriors=tuple(float(p) for p in post_raw),
+        acoustic_log10=_optional(d, "acoustic_log10", float, 0.0),
+        lm_log10=_optional(d, "lm_log10", float, 0.0),
+        start_time=_optional(d, "start_time", float, None),
+        end_time=_optional(d, "end_time", float, None),
+    )
+
+
+def nbest_from_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> NBestList:
+    """Convert a ``hypofuse.nbest`` dict row to an NBestList."""
+    if not isinstance(row, Mapping):
+        raise SchemaError(f"expected dict, got {type(row).__name__}")
+    schema = row.get("schema")
+    if schema is not None and schema != SCHEMA_NBEST:
+        raise SchemaError(f"expected schema {SCHEMA_NBEST!r}, got {schema!r}")
+    if not allow_extra:
+        _reject_extra(row, _NBEST_KEYS)
+    uid = _require(row, "utterance_id", str)
+    system = _require(row, "system", str)
+    language = _require(row, "language", str)
+    hyps_raw = _optional(row, "hypotheses", list, [])
+    hypotheses = tuple(_hyp_from_dict(h, idx=i) for i, h in enumerate(hyps_raw))
+    audio_path = _optional(row, "audio_path", str, "")
+    return NBestList(
+        utterance_id=uid,
+        system=system,
+        language=language,
+        hypotheses=hypotheses,
+        audio_path=audio_path,
+    )
