@@ -76,6 +76,10 @@ def progressive_align(
     if not hypotheses:
         raise AlignmentError("at least one hypothesis is required")
     anchors = [_as_tuple(h) for h in hypotheses]
+    for h_idx, hyp in enumerate(anchors):
+        for tok in hyp:
+            if tok == GAP:
+                raise ValueError(f"hypothesis {h_idx} contains the gap symbol {GAP!r}")
     if len(anchors) == 1:
         return TokenGrid(
             columns=tuple((tok,) for tok in anchors[0]),
