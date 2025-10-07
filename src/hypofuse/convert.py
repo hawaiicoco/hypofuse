@@ -12,9 +12,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from hypofuse.exceptions import SchemaError
-from hypofuse.manifests import SCHEMA_NBEST, SCHEMA_REFERENCE
+from hypofuse.manifests import SCHEMA_NBEST, SCHEMA_REFERENCE, SCHEMA_SYSTEM
 from hypofuse.manifests.nbest import NBestHypothesis, NBestList
 from hypofuse.manifests.reference import ReferenceTranscript
+from hypofuse.manifests.system import SystemMetadata
 
 _META_KEYS = frozenset({"schema", "schema_version"})
 
@@ -202,4 +203,53 @@ def reference_to_row(obj: ReferenceTranscript) -> dict[str, Any]:
         "noise_db": obj.noise_db,
         "intent_domain": obj.intent_domain,
         "tokens": list(obj.tokens),
+    }
+
+
+_SYS_KEYS = frozenset(
+    {
+        "system_id",
+        "language",
+        "vocabulary_size",
+        "description",
+        "acoustic_model",
+        "language_model",
+        "decoder",
+        "version",
+    }
+)
+
+
+def system_from_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> SystemMetadata:
+    """Convert a ``hypofuse.system`` dict row to SystemMetadata."""
+    if not isinstance(row, Mapping):
+        raise SchemaError(f"expected dict, got {type(row).__name__}")
+    if not allow_extra:
+        _reject_extra(row, _SYS_KEYS)
+    sid = _require(row, "system_id", str)
+    lang = _require(row, "language", str)
+    return SystemMetadata(
+        system_id=sid,
+        language=lang,
+        vocabulary_size=_optional(row, "vocabulary_size", int, 0),
+        description=_optional(row, "description", str, ""),
+        acoustic_model=_optional(row, "acoustic_model", str, ""),
+        language_model=_optional(row, "language_model", str, ""),
+        decoder=_optional(row, "decoder", str, ""),
+        version=_optional(row, "version", str, ""),
+    )
+
+
+def system_to_row(obj: SystemMetadata) -> dict[str, Any]:
+    """Convert SystemMetadata to a JSON-serializable dict."""
+    return {
+        "schema": SCHEMA_SYSTEM,
+        "system_id": obj.system_id,
+        "language": obj.language,
+        "vocabulary_size": obj.vocabulary_size,
+        "description": obj.description,
+        "acoustic_model": obj.acoustic_model,
+        "language_model": obj.language_model,
+        "decoder": obj.decoder,
+        "version": obj.version,
     }
