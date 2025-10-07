@@ -125,3 +125,27 @@ def nbest_from_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> NBes
         hypotheses=hypotheses,
         audio_path=audio_path,
     )
+
+
+def nbest_to_row(obj: NBestList) -> dict[str, Any]:
+    """Convert an NBestList to a JSON-serializable dict."""
+    return {
+        "schema": SCHEMA_NBEST,
+        "utterance_id": obj.utterance_id,
+        "system": obj.system,
+        "language": obj.language,
+        "hypotheses": [
+            {
+                "rank": h.rank,
+                "text": h.text,
+                "tokens": list(h.tokens),
+                "posteriors": list(h.posteriors),
+                "acoustic_log10": h.acoustic_log10,
+                "lm_log10": h.lm_log10,
+                "start_time": h.start_time,
+                "end_time": h.end_time,
+            }
+            for h in obj.hypotheses
+        ],
+        "audio_path": obj.audio_path,
+    }

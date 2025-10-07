@@ -73,3 +73,35 @@ def test_nbest_from_row_defaults() -> None:
     assert h.lm_log10 == 0.0
     assert h.start_time is None
     assert h.end_time is None
+
+
+def test_nbest_roundtrip() -> None:
+    """nbest_from_row(nbest_to_row(x)) == x for a populated object."""
+    import json
+
+    from hypofuse.convert import nbest_to_row
+    from hypofuse.manifests.nbest import NBestHypothesis, NBestList
+
+    original = NBestList(
+        utterance_id="u7",
+        system="sys",
+        language="en",
+        hypotheses=(
+            NBestHypothesis(
+                rank=1,
+                text="hello world",
+                tokens=("hello", "world"),
+                posteriors=(0.9, 0.8),
+                acoustic_log10=-1.5,
+                lm_log10=-0.3,
+                start_time=0.0,
+                end_time=1.2,
+            ),
+        ),
+        audio_path="corpus/u7.wav",
+    )
+    row = nbest_to_row(original)
+    restored = nbest_from_row(row)
+    assert restored == original
+    # dict must be JSON-serializable
+    assert json.loads(json.dumps(row)) == row
