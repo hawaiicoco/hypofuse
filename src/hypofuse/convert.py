@@ -12,8 +12,9 @@ from collections.abc import Mapping
 from typing import Any
 
 from hypofuse.exceptions import SchemaError
-from hypofuse.manifests import SCHEMA_NBEST
+from hypofuse.manifests import SCHEMA_NBEST, SCHEMA_REFERENCE
 from hypofuse.manifests.nbest import NBestHypothesis, NBestList
+from hypofuse.manifests.reference import ReferenceTranscript
 
 _META_KEYS = frozenset({"schema", "schema_version"})
 
@@ -148,4 +149,57 @@ def nbest_to_row(obj: NBestList) -> dict[str, Any]:
             for h in obj.hypotheses
         ],
         "audio_path": obj.audio_path,
+    }
+
+
+_REF_KEYS = frozenset(
+    {
+        "utterance_id",
+        "text",
+        "speaker_id",
+        "speaker_group",
+        "duration_s",
+        "noise_db",
+        "intent_domain",
+        "tokens",
+    }
+)
+
+
+def reference_from_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> ReferenceTranscript:
+    """Convert a ``hypofuse.reference`` dict row to a ReferenceTranscript."""
+    if not isinstance(row, Mapping):
+        raise SchemaError(f"expected dict, got {type(row).__name__}")
+    if not allow_extra:
+        _reject_extra(row, _REF_KEYS)
+    uid = _require(row, "utterance_id", str)
+    text = _require(row, "text", str)
+    tokens_raw = _optional(row, "tokens", list, [])
+    for i, t in enumerate(tokens_raw):
+        if not isinstance(t, str):
+            raise SchemaError(f"tokens[{i}] expected str")
+    return ReferenceTranscript(
+        utterance_id=uid,
+        text=text,
+        speaker_id=_optional(row, "speaker_id", str, ""),
+        speaker_group=_optional(row, "speaker_group", str, ""),
+        duration_s=_optional(row, "duration_s", float, 0.0),
+        noise_db=_optional(row, "noise_db", float, 0.0),
+        intent_domain=_optional(row, "intent_domain", str, ""),
+        tokens=tuple(tokens_raw),
+    )
+
+
+def reference_to_row(obj: ReferenceTranscript) -> dict[str, Any]:
+    """Convert a ReferenceTranscript to a JSON-serializable dict."""
+    return {
+        "schema": SCHEMA_REFERENCE,
+        "utterance_id": obj.utterance_id,
+        "text": obj.text,
+        "speaker_id": obj.speaker_id,
+        "speaker_group": obj.speaker_group,
+        "duration_s": obj.duration_s,
+        "noise_db": obj.noise_db,
+        "intent_domain": obj.intent_domain,
+        "tokens": list(obj.tokens),
     }
