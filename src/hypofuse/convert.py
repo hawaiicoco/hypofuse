@@ -12,7 +12,13 @@ from collections.abc import Mapping
 from typing import Any
 
 from hypofuse.exceptions import SchemaError
-from hypofuse.manifests import SCHEMA_NBEST, SCHEMA_REFERENCE, SCHEMA_SYSTEM
+from hypofuse.manifests import (
+    SCHEMA_FUSION_RUN,
+    SCHEMA_NBEST,
+    SCHEMA_REFERENCE,
+    SCHEMA_SYSTEM,
+)
+from hypofuse.manifests.fusion_run import FusionArc, FusionRun
 from hypofuse.manifests.nbest import NBestHypothesis, NBestList
 from hypofuse.manifests.reference import ReferenceTranscript
 from hypofuse.manifests.system import SystemMetadata
@@ -252,4 +258,93 @@ def system_to_row(obj: SystemMetadata) -> dict[str, Any]:
         "language_model": obj.language_model,
         "decoder": obj.decoder,
         "version": obj.version,
+    }
+
+
+_FUSION_KEYS = frozenset(
+    {
+        "utterance_id",
+        "systems",
+        "tokens",
+        "confidences",
+        "policy",
+        "config_hash",
+        "arcs",
+    }
+)
+
+_ARC_KEYS = frozenset({"pivot", "candidates"})
+
+
+def _arc_from_dict(d: Any, *, idx: int) -> FusionArc:
+    if not isinstance(d, dict):
+        raise SchemaError(f"arcs[{idx}] expected dict, got {type(d).__name__}")
+    extra = set(d.keys()) - _ARC_KEYS
+    if extra:
+        raise SchemaError(f"arcs[{idx}]: unknown keys: {sorted(extra)}")
+    pivot = _require(d, "pivot", str)
+    cands_raw = _optional(d, "candidates", list, [])
+    candidates: list[tuple[str, float]] = []
+    for j, c in enumerate(cands_raw):
+        if not isinstance(c, (list, tuple)) or len(c) != 2:
+            raise SchemaError(f"arcs[{idx}].candidates[{j}] expected [str, float] pair")
+        tok, prob = c
+        if not isinstance(tok, str):
+            raise SchemaError(f"arcs[{idx}].candidates[{j}][0] expected str")
+        if isinstance(prob, bool) or not isinstance(prob, (int, float)):
+            raise SchemaError(f"arcs[{idx}].candidates[{j}][1] expected float")
+        candidates.append((tok, float(prob)))
+    return FusionArc(pivot=pivot, candidates=tuple(candidates))
+
+
+def fusion_run_from_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> FusionRun:
+    """Convert a ``hypofuse.fusion_run`` dict row to a FusionRun."""
+    if not isinstance(row, Mapping):
+        raise SchemaError(f"expected dict, got {type(row).__name__}")
+    if not allow_extra:
+        _reject_extra(row, _FUSION_KEYS)
+    uid = _require(row, "utterance_id", str)
+    systems_raw = _require(row, "systems", list)
+    for i, s in enumerate(systems_raw):
+        if not isinstance(s, str):
+            raise SchemaError(f"systems[{i}] expected str")
+    tokens_raw = _require(row, "tokens", list)
+    for i, t in enumerate(tokens_raw):
+        if not isinstance(t, str):
+            raise SchemaError(f"tokens[{i}] expected str")
+    conf_raw = _require(row, "confidences", list)
+    for i, c in enumerate(conf_raw):
+        if isinstance(c, bool) or not isinstance(c, (int, float)):
+            raise SchemaError(f"confidences[{i}] expected float")
+    policy = _require(row, "policy", str)
+    arcs_raw = _optional(row, "arcs", list, [])
+    arcs = tuple(_arc_from_dict(a, idx=i) for i, a in enumerate(arcs_raw))
+    return FusionRun(
+        utterance_id=uid,
+        systems=tuple(systems_raw),
+        tokens=tuple(tokens_raw),
+        confidences=tuple(float(c) for c in conf_raw),
+        policy=policy,
+        config_hash=_optional(row, "config_hash", str, ""),
+        arcs=arcs,
+    )
+
+
+def fusion_run_to_row(obj: FusionRun) -> dict[str, Any]:
+    """Convert a FusionRun to a JSON-serializable dict."""
+    return {
+        "schema": SCHEMA_FUSION_RUN,
+        "utterance_id": obj.utterance_id,
+        "systems": list(obj.systems),
+        "tokens": list(obj.tokens),
+        "confidences": list(obj.confidences),
+        "policy": obj.policy,
+        "config_hash": obj.config_hash,
+        "arcs": [
+            {
+                "pivot": a.pivot,
+                "candidates": [[tok, prob] for tok, prob in a.candidates],
+            }
+            for a in obj.arcs
+        ],
     }
