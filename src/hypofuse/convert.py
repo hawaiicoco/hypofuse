@@ -21,6 +21,7 @@ from hypofuse.manifests import (
 from hypofuse.manifests.fusion_run import FusionArc, FusionRun
 from hypofuse.manifests.nbest import NBestHypothesis, NBestList
 from hypofuse.manifests.reference import ReferenceTranscript
+from hypofuse.manifests.reporter import ReportRecord
 from hypofuse.manifests.system import SystemMetadata
 
 _META_KEYS = frozenset({"schema", "schema_version"})
@@ -347,4 +348,71 @@ def fusion_run_to_row(obj: FusionRun) -> dict[str, Any]:
             }
             for a in obj.arcs
         ],
+    }
+
+
+_REPORT_KEYS = frozenset(
+    {
+        "report_id",
+        "schema",
+        "generated_at",
+        "hypofuse_version",
+        "config_hash",
+        "seed",
+        "artifact_paths",
+        "metrics",
+    }
+)
+
+
+def report_from_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> ReportRecord:
+    """Convert a ``hypofuse.report`` dict row to a ReportRecord."""
+    if not isinstance(row, Mapping):
+        raise SchemaError(f"expected dict, got {type(row).__name__}")
+    if not allow_extra:
+        _reject_extra(row, _REPORT_KEYS)
+    rid = _require(row, "report_id", str)
+    schema_val = _require(row, "schema", str)
+    generated_at = _require(row, "generated_at", str)
+    version = _require(row, "hypofuse_version", str)
+    config_hash = _require(row, "config_hash", str)
+    seed = _require(row, "seed", int)
+    paths_raw = _optional(row, "artifact_paths", list, [])
+    for i, p in enumerate(paths_raw):
+        if not isinstance(p, str):
+            raise SchemaError(f"artifact_paths[{i}] expected str")
+    metrics_raw = _optional(row, "metrics", list, [])
+    metrics: list[tuple[str, float]] = []
+    for i, m in enumerate(metrics_raw):
+        if not isinstance(m, (list, tuple)) or len(m) != 2:
+            raise SchemaError(f"metrics[{i}] expected [str, float] pair")
+        name, val = m
+        if not isinstance(name, str):
+            raise SchemaError(f"metrics[{i}][0] expected str")
+        if isinstance(val, bool) or not isinstance(val, (int, float)):
+            raise SchemaError(f"metrics[{i}][1] expected float")
+        metrics.append((name, float(val)))
+    return ReportRecord(
+        report_id=rid,
+        schema=schema_val,
+        generated_at=generated_at,
+        hypofuse_version=version,
+        config_hash=config_hash,
+        seed=seed,
+        artifact_paths=tuple(paths_raw),
+        metrics=tuple(metrics),
+    )
+
+
+def report_to_row(obj: ReportRecord) -> dict[str, Any]:
+    """Convert a ReportRecord to a JSON-serializable dict."""
+    return {
+        "schema": obj.schema,
+        "report_id": obj.report_id,
+        "generated_at": obj.generated_at,
+        "hypofuse_version": obj.hypofuse_version,
+        "config_hash": obj.config_hash,
+        "seed": obj.seed,
+        "artifact_paths": list(obj.artifact_paths),
+        "metrics": [[name, val] for name, val in obj.metrics],
     }
