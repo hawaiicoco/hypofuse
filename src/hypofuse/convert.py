@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import hypofuse.manifests as _m
 from hypofuse.exceptions import SchemaError
 from hypofuse.manifests import (
     SCHEMA_FUSION_RUN,
@@ -141,6 +142,7 @@ def nbest_to_row(obj: NBestList) -> dict[str, Any]:
     """Convert an NBestList to a JSON-serializable dict."""
     return {
         "schema": SCHEMA_NBEST,
+        "schema_version": _m.SCHEMA_VERSIONS[SCHEMA_NBEST],
         "utterance_id": obj.utterance_id,
         "system": obj.system,
         "language": obj.language,
@@ -203,6 +205,7 @@ def reference_to_row(obj: ReferenceTranscript) -> dict[str, Any]:
     """Convert a ReferenceTranscript to a JSON-serializable dict."""
     return {
         "schema": SCHEMA_REFERENCE,
+        "schema_version": _m.SCHEMA_VERSIONS[SCHEMA_REFERENCE],
         "utterance_id": obj.utterance_id,
         "text": obj.text,
         "speaker_id": obj.speaker_id,
@@ -252,6 +255,7 @@ def system_to_row(obj: SystemMetadata) -> dict[str, Any]:
     """Convert SystemMetadata to a JSON-serializable dict."""
     return {
         "schema": SCHEMA_SYSTEM,
+        "schema_version": _m.SCHEMA_VERSIONS[SCHEMA_SYSTEM],
         "system_id": obj.system_id,
         "language": obj.language,
         "vocabulary_size": obj.vocabulary_size,
@@ -336,6 +340,7 @@ def fusion_run_to_row(obj: FusionRun) -> dict[str, Any]:
     """Convert a FusionRun to a JSON-serializable dict."""
     return {
         "schema": SCHEMA_FUSION_RUN,
+        "schema_version": _m.SCHEMA_VERSIONS[SCHEMA_FUSION_RUN],
         "utterance_id": obj.utterance_id,
         "systems": list(obj.systems),
         "tokens": list(obj.tokens),
@@ -409,6 +414,7 @@ def report_to_row(obj: ReportRecord) -> dict[str, Any]:
     """Convert a ReportRecord to a JSON-serializable dict."""
     return {
         "schema": obj.schema,
+        "schema_version": _m.SCHEMA_VERSIONS[SCHEMA_REPORT],
         "report_id": obj.report_id,
         "generated_at": obj.generated_at,
         "hypofuse_version": obj.hypofuse_version,

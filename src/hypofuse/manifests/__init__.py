@@ -31,6 +31,14 @@ KNOWN_SCHEMAS = frozenset(
     }
 )
 
+SCHEMA_VERSIONS = {
+    SCHEMA_NBEST: 1,
+    SCHEMA_REFERENCE: 1,
+    SCHEMA_SYSTEM: 1,
+    SCHEMA_FUSION_RUN: 1,
+    SCHEMA_REPORT: 1,
+}
+
 __all__ = [
     "KNOWN_SCHEMAS",
     "SCHEMA_FUSION_RUN",
@@ -39,6 +47,7 @@ __all__ = [
     "SCHEMA_REPORT",
     "SCHEMA_SYSTEM",
     "SCHEMA_VERSION",
+    "SCHEMA_VERSIONS",
     "FusionArc",
     "FusionRun",
     "NBestHypothesis",
