@@ -16,6 +16,7 @@ from hypofuse.manifests import (
     SCHEMA_FUSION_RUN,
     SCHEMA_NBEST,
     SCHEMA_REFERENCE,
+    SCHEMA_REPORT,
     SCHEMA_SYSTEM,
 )
 from hypofuse.manifests.fusion_run import FusionArc, FusionRun
@@ -416,3 +417,29 @@ def report_to_row(obj: ReportRecord) -> dict[str, Any]:
         "artifact_paths": list(obj.artifact_paths),
         "metrics": [[name, val] for name, val in obj.metrics],
     }
+
+
+_SCHEMA_DISPATCH: dict[str, Any] = {
+    SCHEMA_NBEST: nbest_from_row,
+    SCHEMA_REFERENCE: reference_from_row,
+    SCHEMA_SYSTEM: system_from_row,
+    SCHEMA_FUSION_RUN: fusion_run_from_row,
+    SCHEMA_REPORT: report_from_row,
+}
+
+
+def convert_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> Any:
+    """Dispatch to the correct ``*_from_row`` based on ``row["schema"]``.
+
+    Raises SchemaError listing supported schemas for an unknown one.
+    """
+    if not isinstance(row, Mapping):
+        raise SchemaError(f"expected dict, got {type(row).__name__}")
+    schema = row.get("schema")
+    if schema is None:
+        raise SchemaError("missing schema field")
+    handler = _SCHEMA_DISPATCH.get(schema)
+    if handler is None:
+        supported = sorted(_SCHEMA_DISPATCH.keys())
+        raise SchemaError(f"unknown schema {schema!r}; supported: {supported}")
+    return handler(row, allow_extra=allow_extra)
