@@ -449,3 +449,48 @@ def convert_row(row: Mapping[str, Any], *, allow_extra: bool = False) -> Any:
         supported = sorted(_SCHEMA_DISPATCH.keys())
         raise SchemaError(f"unknown schema {schema!r}; supported: {supported}")
     return handler(row, allow_extra=allow_extra)
+
+
+def migrate_row(row: dict[str, Any], *, to_version: int) -> dict[str, Any]:
+    """Migrate a manifest row to *to_version*.
+
+    Documented migrations:
+
+    * **nbest v1 -> v2** -- hypotheses stored a single ``score`` field;
+      v2 splits this into ``acoustic_log10`` (keeps the value) and
+      ``lm_log10`` (defaults to 0.0).
+
+    Downgrades are rejected.  Already-current rows are returned as a
+    shallow copy with the version stamped.
+    """
+    schema = row.get("schema")
+    if schema not in _SCHEMA_DISPATCH:
+        # The dispatch table is exactly the set of schemas this package knows.
+        raise SchemaError(f"unknown schema: {schema!r}")
+    current = row.get("schema_version", 1)
+    if not isinstance(current, int) or isinstance(current, bool):
+        raise SchemaError("schema_version must be an integer")
+    if current > to_version:
+        raise SchemaError(f"cannot downgrade {schema} from v{current} to v{to_version}")
+    if current == to_version:
+        result = dict(row)
+        result["schema_version"] = to_version
+        return result
+    result = dict(row)
+    if schema == SCHEMA_NBEST and current < 2 <= to_version:
+        hyps = result.get("hypotheses", [])
+        new_hyps: list[dict[str, Any]] = []
+        for h in hyps:
+            new_h = dict(h)
+            if "score" in new_h:
+                new_h["acoustic_log10"] = new_h.pop("score")
+                new_h.setdefault("lm_log10", 0.0)
+            new_hyps.append(new_h)
+        result["hypotheses"] = new_hyps
+    result["schema_version"] = to_version
+    return result
+
+
+def migrate_manifest(rows: list[dict[str, Any]], *, to_version: int) -> list[dict[str, Any]]:
+    """Migrate every row in a manifest to *to_version*."""
+    return [migrate_row(row, to_version=to_version) for row in rows]
