@@ -1,0 +1,3 @@
+{"schema": "hypofuse.nbest", "utterance_id": "u001", "system": "synth_a", "language": "en", "hypotheses": [{"rank": 1, "text": "hello world", "tokens": ["hello", "world"], "score": -1.5}, {"rank": 2, "text": "hello word", "tokens": ["hello", "word"], "score": -2.3}]}
+{"schema": "hypofuse.nbest", "utterance_id": "u002", "system": "synth_a", "language": "en", "hypotheses": [{"rank": 1, "text": "good morning", "tokens": ["good", "morning"], "score": -0.8}]}
+{"schema": "hypofuse.nbest", "utterance_id": "u003", "system": "synth_a", "language": "en", "hypotheses": [{"rank": 1, "text": "the cat sat", "tokens": ["the", "cat", "sat"], "score": -1.0}]}

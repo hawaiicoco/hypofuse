@@ -1,0 +1,3 @@
+{"schema": "hypofuse.reference", "utterance_id": "u001", "text": "hello world"}
+{"schema": "hypofuse.reference", "utterance_id": "u002", "text": "good morning", "speaker_group": "A", "intent_domain": "greeting"}
+{"schema": "hypofuse.reference", "utterance_id": "u003", "text": "\u4f60\u597d\u4e16\u754c", "speaker_group": "B", "intent_domain": "greeting"}
