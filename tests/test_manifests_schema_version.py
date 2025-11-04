@@ -68,3 +68,72 @@ def test_report_to_row_stamps_version() -> None:
     )
     row = report_to_row(rep)
     assert row["schema_version"] == m.SCHEMA_VERSIONS[m.SCHEMA_REPORT]
+
+
+def test_validate_record_accepts_missing_version() -> None:
+    """Missing schema_version is treated as version 1."""
+    from hypofuse.manifests.validate import validate_record
+
+    row = {
+        "schema": "hypofuse.nbest",
+        "utterance_id": "u1",
+        "system": "a",
+        "language": "en",
+    }
+    assert validate_record(row) == "hypofuse.nbest"
+
+
+def test_validate_record_accepts_known_version() -> None:
+    from hypofuse.manifests.validate import validate_record
+
+    row = {
+        "schema": "hypofuse.nbest",
+        "schema_version": 1,
+        "utterance_id": "u1",
+        "system": "a",
+        "language": "en",
+    }
+    assert validate_record(row) == "hypofuse.nbest"
+
+
+def test_validate_record_rejects_unknown_version() -> None:
+    import pytest
+
+    from hypofuse.exceptions import SchemaError
+    from hypofuse.manifests.validate import validate_record
+
+    row = {
+        "schema": "hypofuse.nbest",
+        "schema_version": 999,
+        "utterance_id": "u1",
+        "system": "a",
+        "language": "en",
+    }
+    with pytest.raises(SchemaError, match="unknown schema_version"):
+        validate_record(row)
+
+
+def test_validate_record_rejects_bool_version() -> None:
+    import pytest
+
+    from hypofuse.exceptions import SchemaError
+    from hypofuse.manifests.validate import validate_record
+
+    row = {
+        "schema": "hypofuse.nbest",
+        "schema_version": True,
+        "utterance_id": "u1",
+        "system": "a",
+        "language": "en",
+    }
+    with pytest.raises(SchemaError, match="schema_version must be an integer"):
+        validate_record(row)
+
+
+def test_golden_stamped_nbest_row() -> None:
+    """The exact stamped row for nbest is stable."""
+    nb = NBestList(utterance_id="u1", system="a", language="en")
+    row = nbest_to_row(nb)
+    assert row["schema"] == "hypofuse.nbest"
+    assert row["schema_version"] == m.SCHEMA_VERSIONS[m.SCHEMA_NBEST]
+    assert isinstance(row["schema_version"], int)

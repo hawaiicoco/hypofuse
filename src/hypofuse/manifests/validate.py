@@ -13,6 +13,7 @@ from . import (
     SCHEMA_NBEST,
     SCHEMA_REFERENCE,
     SCHEMA_SYSTEM,
+    SCHEMA_VERSIONS,
 )
 
 _STRING_FIELDS = {
@@ -64,6 +65,16 @@ def validate_record(row: Mapping[str, Any]) -> str:
                 not isinstance(value, (int, float)) or isinstance(value, bool)
             ):
                 raise SchemaError(f"field {field_name} must be numeric")
+    # schema_version: missing is treated as 1, unknown is rejected
+    version = row.get("schema_version")
+    if version is not None:
+        if not isinstance(version, int) or isinstance(version, bool):
+            raise SchemaError("schema_version must be an integer")
+        max_version = SCHEMA_VERSIONS.get(schema, 1)
+        if version < 1 or version > max_version:
+            raise SchemaError(
+                f"unknown schema_version {version} for {schema!r} (max known: {max_version})"
+            )
     return schema
 
 
