@@ -84,3 +84,41 @@ def test_write_compact_json(tmp_path: Path) -> None:
     # compact JSON has no space after colons or commas
     assert ": " not in line
     assert ", " not in line
+
+
+def test_exact_byte_output(tmp_path: Path) -> None:
+    """Verify exact byte of a written manifest row.
+
+    Keys are sorted, values compact, UTF-8, LF line endings.
+    """
+    target = tmp_path / "exact.jsonl"
+    rows = [
+        {
+            "schema": "hypofuse.nbest",
+            "utterance_id": "u1",
+            "system": "a",
+            "language": "en",
+        },
+    ]
+    write_manifest(target, rows)
+    raw = target.read_bytes()
+    # Compact, sorted keys, LF ending, UTF-8
+    expected = b'{"language":"en","schema":"hypofuse.nbest","system":"a","utterance_id":"u1"}\n'
+    assert raw == expected
+
+
+def test_sorted_keys_in_output(tmp_path: Path) -> None:
+    """Keys appear in sorted order in the written JSON."""
+    target = tmp_path / "sorted.jsonl"
+    rows = [
+        {
+            "schema": "hypofuse.reference",
+            "utterance_id": "u1",
+            "text": "hi",
+        },
+    ]
+    write_manifest(target, rows)
+    line = target.read_text(encoding="utf-8").strip()
+    # schema < text < utterance_id
+    assert line.index('"schema"') < line.index('"text"')
+    assert line.index('"text"') < line.index('"utterance_id"')
