@@ -81,19 +81,33 @@ def validate_record(row: Mapping[str, Any]) -> str:
     return schema
 
 
-def reject_duplicate_ids(rows: Iterable[Mapping[str, Any]], id_field: str = "utterance_id") -> None:
-    seen: set[tuple[str, str]] = set()
+def reject_duplicate_ids(
+    rows: Iterable[Mapping[str, Any]],
+    id_field: str = "utterance_id",
+    scope: str = "schema",
+) -> None:
+    """Reject rows with duplicate ids.
+
+    scope="schema" (default): id must be unique per schema name.
+    scope="file": id must be unique across the entire file.
+    """
+    if scope not in {"file", "schema"}:
+        raise ValueError(f"unknown scope: {scope!r}")
+    seen: dict[Any, int] = {}
     for idx, row in enumerate(rows):
         value = row.get(id_field)
         if value is None:
             continue
-        schema = row.get("schema", "")
-        key = (schema, value)
+        if scope == "schema":
+            schema = row.get("schema", "")
+            key: Any = (schema, value)
+        else:
+            key = value
         if key in seen:
             raise DuplicateIdError(
-                f"duplicate {id_field}={value!r} in schema {schema!r} at row {idx}"
+                f"duplicate {id_field}={value!r} at lines {seen[key]} and {idx + 1}"
             )
-        seen.add(key)
+        seen[key] = idx + 1
 
 
 @dataclass(frozen=True)
