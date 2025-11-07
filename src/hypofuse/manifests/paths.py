@@ -1,4 +1,19 @@
-"""Audio-path safety checks for manifests."""
+"""Audio-path safety checks for manifests.
+
+Policy
+------
+Audio paths stored in manifests are **relative** paths under the
+manifest file's directory.  The following forms are rejected:
+
+* Absolute paths (leading ``/`` or ``~``)
+* Parent-directory traversal (``..`` segments)
+* Windows-style drive letters (``C:``, ``D:\\`` etc.)
+* NUL bytes, double slashes, and unsafe characters in segments
+* Empty segment names
+
+Backslash separators are normalised to forward slashes on POSIX.
+Empty strings are allowed (audio is optional).
+"""
 
 from __future__ import annotations
 
@@ -8,6 +23,7 @@ from pathlib import Path
 from hypofuse.exceptions import SchemaError
 
 _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._\-]+$")
+_DRIVE_LETTER = re.compile(r"^[A-Za-z]:")
 
 
 def normalize_audio_path(raw: str) -> str:
@@ -22,6 +38,8 @@ def normalize_audio_path(raw: str) -> str:
         raise SchemaError("audio_path contains a NUL byte")
     if raw.startswith(("/", "~")):
         raise SchemaError("audio_path must be relative")
+    if _DRIVE_LETTER.match(raw):
+        raise SchemaError("audio_path contains a drive letter")
     cleaned = raw.replace("\\", "/")
     while "//" in cleaned:
         cleaned = cleaned.replace("//", "/")
