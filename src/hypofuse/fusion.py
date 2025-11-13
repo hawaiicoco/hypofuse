@@ -18,12 +18,14 @@ POLICY_MAJORITY = "majority"
 POLICY_SCORE_WEIGHTED = "score_weighted"
 POLICY_LM_WEIGHTED = "lm_weighted"
 POLICY_POSTERIOR_WEIGHTED = "posterior_weighted"
+POLICY_CONFIDENCE_WEIGHTED = "confidence_weighted"
 
 _VALID_POLICIES = {
     POLICY_MAJORITY,
     POLICY_SCORE_WEIGHTED,
     POLICY_LM_WEIGHTED,
     POLICY_POSTERIOR_WEIGHTED,
+    POLICY_CONFIDENCE_WEIGHTED,
 }
 
 
@@ -94,6 +96,22 @@ def _posterior_weighted_vote(
     return _majority_vote(weighted, config)
 
 
+def _confidence_weighted_vote(
+    candidates: list[tuple[Hashable, float]],
+    hyp_weights: list[float],
+    config: FusionConfig,
+) -> tuple[Hashable, float]:
+    """Weight each candidate by its hypothesis-level weight, then majority vote.
+
+    Unlike ``score_weighted`` (which reads per-token acoustic scores),
+    this policy uses one scalar weight per hypothesis.
+    """
+    weighted: list[tuple[Hashable, float]] = []
+    for (token, score), hw in zip(candidates, hyp_weights, strict=False):
+        weighted.append((token, score * max(0.0, hw)))
+    return _majority_vote(weighted, config)
+
+
 def _tie_break(winners: Sequence[Hashable], config: FusionConfig) -> Hashable:
     if config.tie_break == "first":
         return winners[0]
@@ -106,6 +124,7 @@ def fuse(
     lm_scores: Sequence[Sequence[float]] | None = None,
     config: FusionConfig | None = None,
     posteriors: Sequence[Sequence[float]] | None = None,
+    weights: Sequence[float] | None = None,
 ) -> FusionResult:
     """Fuse hypotheses aligned on ``grid`` into a single token sequence.
 
@@ -145,6 +164,11 @@ def fuse(
                 post_grid[col_idx][h_idx] = float(row[col_idx])
     if config.policy == POLICY_POSTERIOR_WEIGHTED and posteriors is None:
         raise FusionError("posterior_weighted policy requires posteriors")
+    conf_weights: list[float] = [1.0] * n_hyps
+    if weights is not None:
+        if len(weights) != n_hyps:
+            raise FusionError(f"weights length ({len(weights)}) != grid depth ({n_hyps})")
+        conf_weights = [float(w) for w in weights]
     tokens: list[str] = []
     confidences: list[float] = []
     chosen: list[tuple[Hashable, float]] = []
@@ -152,6 +176,7 @@ def fuse(
         candidates: list[tuple[Hashable, float]] = []
         lm_col: list[float] = []
         post_col: list[float] = []
+        weights_col: list[float] = []
         for h_idx, token in enumerate(column):
             if token == GAP:
                 continue
@@ -160,6 +185,7 @@ def fuse(
             candidates.append((token, weight))
             lm_col.append(lm_grid[col_idx][h_idx])
             post_col.append(post_grid[col_idx][h_idx])
+            weights_col.append(conf_weights[h_idx])
         if not candidates:
             tokens.append(config.null_token)
             confidences.append(0.0)
@@ -173,6 +199,8 @@ def fuse(
             tok, score = _lm_weighted_vote(candidates, lm_col, config)
         elif config.policy == POLICY_POSTERIOR_WEIGHTED:
             tok, score = _posterior_weighted_vote(candidates, post_col, config)
+        elif config.policy == POLICY_CONFIDENCE_WEIGHTED:
+            tok, score = _confidence_weighted_vote(candidates, weights_col, config)
         else:
             raise FusionError(f"unreachable policy: {config.policy}")
         agreement = sum(1 for c, _ in candidates if c == tok) / len(candidates)
