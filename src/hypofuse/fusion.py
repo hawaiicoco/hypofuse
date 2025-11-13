@@ -8,6 +8,7 @@ per-token fused confidences.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
 
@@ -56,6 +57,9 @@ class FusionResult:
     tokens: tuple[str, ...]
     confidences: tuple[float, ...]
     chosen: tuple[tuple[Hashable, float], ...]  # (token, score) per column
+    agreements: tuple[float, ...] = ()
+    margins: tuple[float, ...] = ()
+    entropies: tuple[float, ...] = ()
 
 
 def _majority_vote(
@@ -191,6 +195,9 @@ def fuse(
     tokens: list[str] = []
     confidences: list[float] = []
     chosen: list[tuple[Hashable, float]] = []
+    agreements_list: list[float] = []
+    margins_list: list[float] = []
+    entropies_list: list[float] = []
     for col_idx, column in enumerate(grid.columns):
         candidates: list[tuple[Hashable, float]] = []
         lm_col: list[float] = []
@@ -211,6 +218,9 @@ def fuse(
             tokens.append(config.null_token)
             confidences.append(0.0)
             chosen.append((config.null_token, 0.0))
+            agreements_list.append(0.0)
+            margins_list.append(0.0)
+            entropies_list.append(0.0)
             continue
         if config.policy == POLICY_MAJORITY:
             tok, score = _majority_vote(candidates, config)
@@ -224,14 +234,36 @@ def fuse(
             tok, score = _confidence_weighted_vote(candidates, weights_col, config)
         else:
             raise FusionError(f"unreachable policy: {config.policy}")
-        agreement = sum(1 for c, _ in candidates if c == tok) / len(candidates)
+        agreement_count = sum(1 for c, _ in candidates if c == tok) / len(candidates)
+        # Mass-based statistics
+        mass_counts: dict[Hashable, float] = {}
+        for c_tok, c_w in candidates:
+            mass_counts[c_tok] = mass_counts.get(c_tok, 0.0) + c_w
+        total_mass = sum(mass_counts.values())
+        sorted_masses = sorted(mass_counts.values(), reverse=True)
+        winner_mass = mass_counts.get(tok, 0.0)
+        runner_up_mass = sorted_masses[1] if len(sorted_masses) > 1 else 0.0
+        agg = winner_mass / total_mass if total_mass > 0 else 0.0
+        marg = (winner_mass - runner_up_mass) / total_mass if total_mass > 0 else 0.0
+        ent = 0.0
+        if total_mass > 0:
+            for mass_val in sorted_masses:
+                p = mass_val / total_mass
+                if p > 0:
+                    ent -= p * math.log(p)
         tokens.append(str(tok))
-        confidences.append(float(agreement))
+        confidences.append(float(agreement_count))
         chosen.append((tok, score))
+        agreements_list.append(float(agg))
+        margins_list.append(float(marg))
+        entropies_list.append(float(ent))
     return FusionResult(
         tokens=tuple(tokens),
         confidences=tuple(confidences),
         chosen=tuple(chosen),
+        agreements=tuple(agreements_list),
+        margins=tuple(margins_list),
+        entropies=tuple(entropies_list),
     )
 
 
