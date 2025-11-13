@@ -17,8 +17,14 @@ from hypofuse.multi_align import GAP, TokenGrid
 POLICY_MAJORITY = "majority"
 POLICY_SCORE_WEIGHTED = "score_weighted"
 POLICY_LM_WEIGHTED = "lm_weighted"
+POLICY_POSTERIOR_WEIGHTED = "posterior_weighted"
 
-_VALID_POLICIES = {POLICY_MAJORITY, POLICY_SCORE_WEIGHTED, POLICY_LM_WEIGHTED}
+_VALID_POLICIES = {
+    POLICY_MAJORITY,
+    POLICY_SCORE_WEIGHTED,
+    POLICY_LM_WEIGHTED,
+    POLICY_POSTERIOR_WEIGHTED,
+}
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,18 @@ def _lm_weighted_vote(
     return _majority_vote(weighted, config)
 
 
+def _posterior_weighted_vote(
+    candidates: list[tuple[Hashable, float]],
+    posteriors_col: list[float],
+    config: FusionConfig,
+) -> tuple[Hashable, float]:
+    """Weight each candidate by its per-token posterior, then majority vote."""
+    weighted: list[tuple[Hashable, float]] = []
+    for (token, weight), post in zip(candidates, posteriors_col, strict=False):
+        weighted.append((token, weight * max(0.0, post)))
+    return _majority_vote(weighted, config)
+
+
 def _tie_break(winners: Sequence[Hashable], config: FusionConfig) -> Hashable:
     if config.tie_break == "first":
         return winners[0]
@@ -87,12 +105,17 @@ def fuse(
     scores: Sequence[Sequence[float]] | None = None,
     lm_scores: Sequence[Sequence[float]] | None = None,
     config: FusionConfig | None = None,
+    posteriors: Sequence[Sequence[float]] | None = None,
 ) -> FusionResult:
     """Fuse hypotheses aligned on ``grid`` into a single token sequence.
 
     ``scores`` and ``lm_scores`` are optional per-token, per-hypothesis
     numeric weights (acoustic log10 / LM log10 by convention). Missing
     scores are treated as 0.
+
+    ``posteriors`` is an optional per-token, per-hypothesis posterior
+    probability grid used by the ``posterior_weighted`` policy. Must
+    have one row per hypothesis and one column per grid position.
     """
     config = config or FusionConfig()
     config.validate()
@@ -109,12 +132,26 @@ def fuse(
             for col_idx in range(grid.width):
                 if h_idx < n_hyps and col_idx < len(row):
                     lm_grid[col_idx][h_idx] = float(row[col_idx])
+    post_grid: list[list[float]] = [[1.0] * n_hyps for _ in range(grid.width)]
+    if posteriors is not None:
+        if len(posteriors) != n_hyps:
+            raise FusionError(f"posteriors rows ({len(posteriors)}) != grid depth ({n_hyps})")
+        for h_idx, row in enumerate(posteriors):
+            if len(row) != grid.width:
+                raise FusionError(
+                    f"posteriors row {h_idx} length ({len(row)}) != grid width ({grid.width})"
+                )
+            for col_idx in range(grid.width):
+                post_grid[col_idx][h_idx] = float(row[col_idx])
+    if config.policy == POLICY_POSTERIOR_WEIGHTED and posteriors is None:
+        raise FusionError("posterior_weighted policy requires posteriors")
     tokens: list[str] = []
     confidences: list[float] = []
     chosen: list[tuple[Hashable, float]] = []
     for col_idx, column in enumerate(grid.columns):
         candidates: list[tuple[Hashable, float]] = []
         lm_col: list[float] = []
+        post_col: list[float] = []
         for h_idx, token in enumerate(column):
             if token == GAP:
                 continue
@@ -122,6 +159,7 @@ def fuse(
             weight = 1.0 if scores is None else max(0.0, weight)
             candidates.append((token, weight))
             lm_col.append(lm_grid[col_idx][h_idx])
+            post_col.append(post_grid[col_idx][h_idx])
         if not candidates:
             tokens.append(config.null_token)
             confidences.append(0.0)
@@ -133,13 +171,19 @@ def fuse(
             tok, score = _score_weighted_vote(candidates, config)
         elif config.policy == POLICY_LM_WEIGHTED:
             tok, score = _lm_weighted_vote(candidates, lm_col, config)
+        elif config.policy == POLICY_POSTERIOR_WEIGHTED:
+            tok, score = _posterior_weighted_vote(candidates, post_col, config)
         else:
             raise FusionError(f"unreachable policy: {config.policy}")
         agreement = sum(1 for c, _ in candidates if c == tok) / len(candidates)
         tokens.append(str(tok))
         confidences.append(float(agreement))
         chosen.append((tok, score))
-    return FusionResult(tokens=tuple(tokens), confidences=tuple(confidences), chosen=tuple(chosen))
+    return FusionResult(
+        tokens=tuple(tokens),
+        confidences=tuple(confidences),
+        chosen=tuple(chosen),
+    )
 
 
 def fusion_invariants(result: FusionResult, inputs: Sequence[Sequence[str]]) -> bool:
