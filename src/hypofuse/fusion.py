@@ -36,6 +36,7 @@ class FusionConfig:
     beta: float = 1.0  # weight for acoustic scores when policy is score-weighted
     tie_break: str = "lexicographic"  # "lexicographic" | "first"
     null_token: str = GAP  # used for gap columns
+    null_policy: str = "keep"  # "keep"|"drop"|"vote"; default matches current behaviour
 
     def validate(self) -> None:
         if self.policy not in _VALID_POLICIES:
@@ -44,6 +45,8 @@ class FusionConfig:
             raise FusionError("alpha and beta must be non-negative")
         if self.tie_break not in {"lexicographic", "first"}:
             raise FusionError(f"unknown tie_break: {self.tie_break!r}")
+        if self.null_policy not in {"keep", "drop", "vote"}:
+            raise FusionError(f"unknown null_policy: {self.null_policy!r}")
 
 
 @dataclass(frozen=True)
@@ -178,7 +181,7 @@ def fuse(
         post_col: list[float] = []
         weights_col: list[float] = []
         for h_idx, token in enumerate(column):
-            if token == GAP:
+            if token == GAP and config.null_policy != "vote":
                 continue
             weight = score_grid[col_idx][h_idx]
             weight = 1.0 if scores is None else max(0.0, weight)
@@ -187,6 +190,8 @@ def fuse(
             post_col.append(post_grid[col_idx][h_idx])
             weights_col.append(conf_weights[h_idx])
         if not candidates:
+            if config.null_policy == "drop":
+                continue
             tokens.append(config.null_token)
             confidences.append(0.0)
             chosen.append((config.null_token, 0.0))
