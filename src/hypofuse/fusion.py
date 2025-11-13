@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from hypofuse.exceptions import FusionError
 from hypofuse.multi_align import GAP, TokenGrid
+from hypofuse.util import seeded
 
 POLICY_MAJORITY = "majority"
 POLICY_SCORE_WEIGHTED = "score_weighted"
@@ -37,13 +38,14 @@ class FusionConfig:
     tie_break: str = "lexicographic"  # "lexicographic" | "first"
     null_token: str = GAP  # used for gap columns
     null_policy: str = "keep"  # "keep"|"drop"|"vote"; default matches current behaviour
+    seed: int = 0  # used by tie_break="seeded"
 
     def validate(self) -> None:
         if self.policy not in _VALID_POLICIES:
             raise FusionError(f"unknown policy: {self.policy!r}")
         if self.alpha < 0 or self.beta < 0:
             raise FusionError("alpha and beta must be non-negative")
-        if self.tie_break not in {"lexicographic", "first"}:
+        if self.tie_break not in {"lexicographic", "first", "highest_score", "seeded"}:
             raise FusionError(f"unknown tie_break: {self.tie_break!r}")
         if self.null_policy not in {"keep", "drop", "vote"}:
             raise FusionError(f"unknown null_policy: {self.null_policy!r}")
@@ -65,7 +67,7 @@ def _majority_vote(
         counts[token] = counts.get(token, 0.0) + weight
     top_score = max(counts.values())
     winners = [tok for tok, score in counts.items() if score == top_score]
-    chosen = _tie_break(winners, config)
+    chosen = _tie_break(winners, config, candidates)
     return chosen, top_score
 
 
@@ -115,9 +117,23 @@ def _confidence_weighted_vote(
     return _majority_vote(weighted, config)
 
 
-def _tie_break(winners: Sequence[Hashable], config: FusionConfig) -> Hashable:
+def _tie_break(
+    winners: Sequence[Hashable],
+    config: FusionConfig,
+    candidates: list[tuple[Hashable, float]] | None = None,
+) -> Hashable:
     if config.tie_break == "first":
         return winners[0]
+    if config.tie_break == "highest_score" and candidates is not None:
+        winner_set = set(winners)
+        best: dict[Hashable, float] = {}
+        for tok, w in candidates:
+            if tok in winner_set:
+                best[tok] = max(best.get(tok, -float("inf")), w)
+        return max(best, key=lambda t: best[t])
+    if config.tie_break == "seeded":
+        rng = seeded(config.seed)
+        return rng.choice(list(winners))
     return sorted(winners, key=lambda x: str(x))[0]
 
 
