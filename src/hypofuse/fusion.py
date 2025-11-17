@@ -312,6 +312,65 @@ def fusion_summary(results: Sequence[FusionResult]) -> FusionSummary:
     )
 
 
+def fusion_to_manifest_row(
+    result: FusionResult,
+    utterance_id: str,
+    system: str = "rover",
+    config: FusionConfig | None = None,
+) -> dict[str, object]:
+    """Produce a ``hypofuse.fusion_run`` manifest row from a FusionResult.
+
+    Field names match :class:`manifests.fusion_run.FusionRun` exactly.
+    """
+    from hypofuse.manifests import SCHEMA_FUSION_RUN, SCHEMA_VERSION
+    from hypofuse.util import stable_hash
+
+    cfg = config or FusionConfig()
+    arcs_list = [
+        {
+            "pivot": str(tok),
+            "candidates": [[str(tok), float(score)]],
+        }
+        for tok, score in result.chosen
+    ]
+    return {
+        "schema": SCHEMA_FUSION_RUN,
+        "schema_version": SCHEMA_VERSION,
+        "utterance_id": utterance_id,
+        "systems": [system],
+        "tokens": list(result.tokens),
+        "confidences": list(result.confidences),
+        "policy": cfg.policy,
+        "config_hash": stable_hash(
+            {
+                "policy": cfg.policy,
+                "alpha": cfg.alpha,
+                "beta": cfg.beta,
+                "tie_break": cfg.tie_break,
+            }
+        ),
+        "arcs": arcs_list,
+    }
+
+
+def fusion_from_manifest_row(row: dict[str, object]) -> FusionResult:
+    """Reconstruct a FusionResult from a ``hypofuse.fusion_run`` manifest row."""
+    tokens = tuple(str(t) for t in row["tokens"])
+    confidences = tuple(float(c) for c in row["confidences"])
+    arcs_raw = row.get("arcs", [])
+    chosen_list: list[tuple[str, float]] = []
+    for entry in arcs_raw:
+        pivot = str(entry["pivot"])
+        cands = entry.get("candidates", [])
+        score = float(cands[0][1]) if cands else 0.0
+        chosen_list.append((pivot, score))
+    return FusionResult(
+        tokens=tokens,
+        confidences=confidences,
+        chosen=tuple(chosen_list),
+    )
+
+
 def fusion_invariants(result: FusionResult, inputs: Sequence[Sequence[str]]) -> bool:
     """Check multiple consistency properties of the fusion result.
 
