@@ -40,6 +40,7 @@ class FusionConfig:
     null_token: str = GAP  # used for gap columns
     null_policy: str = "keep"  # "keep"|"drop"|"vote"; default matches current behaviour
     seed: int = 0  # used by tie_break="seeded"
+    order_policy: str = "given"  # "given"|"sorted"
 
     def validate(self) -> None:
         if self.policy not in _VALID_POLICIES:
@@ -50,6 +51,8 @@ class FusionConfig:
             raise FusionError(f"unknown tie_break: {self.tie_break!r}")
         if self.null_policy not in {"keep", "drop", "vote"}:
             raise FusionError(f"unknown null_policy: {self.null_policy!r}")
+        if self.order_policy not in {"given", "sorted"}:
+            raise FusionError(f"unknown order_policy: {self.order_policy!r}")
 
 
 @dataclass(frozen=True)
@@ -212,6 +215,12 @@ def fuse(
             lm_col.append(lm_grid[col_idx][h_idx])
             post_col.append(post_grid[col_idx][h_idx])
             weights_col.append(conf_weights[h_idx])
+        if config.order_policy == "sorted":
+            order = sorted(range(len(candidates)), key=lambda i: str(candidates[i][0]))
+            candidates = [candidates[i] for i in order]
+            lm_col = [lm_col[i] for i in order]
+            post_col = [post_col[i] for i in order]
+            weights_col = [weights_col[i] for i in order]
         if not candidates:
             if config.null_policy == "drop":
                 continue
