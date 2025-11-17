@@ -268,9 +268,28 @@ def fuse(
 
 
 def fusion_invariants(result: FusionResult, inputs: Sequence[Sequence[str]]) -> bool:
-    """The fused token set is a subset of the input token sets, never new ones."""
+    """Check multiple consistency properties of the fusion result.
+
+    Returns True only when all of the following hold:
+
+    - fused tokens are a subset of input tokens
+    - len(confidences) == len(tokens)
+    - every confidence is in [0, 1]
+    - agreements (if present) are <= 1
+    """
     fused = set(result.tokens)
     universe: set[str] = set()
     for seq in inputs:
         universe.update(seq)
-    return fused.issubset(universe)
+    if not fused.issubset(universe):
+        return False
+    if len(result.confidences) != len(result.tokens):
+        return False
+    for c in result.confidences:
+        if c < 0.0 or c > 1.0:
+            return False
+    if result.agreements:
+        for a in result.agreements:
+            if a > 1.0:
+                return False
+    return True
