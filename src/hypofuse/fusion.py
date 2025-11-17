@@ -267,6 +267,51 @@ def fuse(
     )
 
 
+@dataclass(frozen=True)
+class FusionSummary:
+    """Aggregate statistics over a batch of fusion results."""
+
+    token_count: int
+    mean_confidence: float
+    unanimous_fraction: float
+    gap_fraction: float
+
+
+def fuse_many(
+    grids: Sequence[TokenGrid],
+    config: FusionConfig | None = None,
+) -> list[FusionResult]:
+    """Fuse each grid in sequence, returning a list of results."""
+    return [fuse(g, config=config) for g in grids]
+
+
+def fusion_summary(results: Sequence[FusionResult]) -> FusionSummary:
+    """Aggregate statistics over a batch of fusion results.
+
+    Returns token count, mean confidence, fraction of unanimous columns
+    (confidence >= 1.0), and fraction of gap columns (token == GAP).
+    """
+    if not results:
+        return FusionSummary(
+            token_count=0,
+            mean_confidence=0.0,
+            unanimous_fraction=0.0,
+            gap_fraction=0.0,
+        )
+    total_tokens = sum(len(r.tokens) for r in results)
+    all_confs = [c for r in results for c in r.confidences]
+    mean_conf = sum(all_confs) / len(all_confs) if all_confs else 0.0
+    total_cols = sum(len(r.tokens) for r in results)
+    unanimous = sum(1 for r in results for c in r.confidences if c >= 1.0 - 1e-9)
+    gaps = sum(1 for r in results for t in r.tokens if t == GAP)
+    return FusionSummary(
+        token_count=total_tokens,
+        mean_confidence=mean_conf,
+        unanimous_fraction=unanimous / total_cols if total_cols else 0.0,
+        gap_fraction=gaps / total_cols if total_cols else 0.0,
+    )
+
+
 def fusion_invariants(result: FusionResult, inputs: Sequence[Sequence[str]]) -> bool:
     """Check multiple consistency properties of the fusion result.
 
