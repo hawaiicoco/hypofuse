@@ -1,9 +1,53 @@
 """ROVER-style consensus fusion over an alignment grid.
 
-The :func:`fuse` entry point takes the output of :func:`multi_align.progressive_align`
-together with optional per-token scores from each hypothesis, applies a voting
-policy to pick a token per grid column, and emits the fused token sequence with
-per-token fused confidences.
+This module implements the ROVER (Recognizer Output Voting Error Reduction)
+framework described in Fiscus 1997 and further refined in the confusion
+network literature (arXiv:1904.08295, Mangu et al.). The core idea is to
+align multiple ASR hypotheses into a token grid, then vote per column to
+produce a single fused output that is often more accurate than any single
+hypothesis.
+
+Vote-mass estimator
+-------------------
+Each hypothesis contributes a weight to its token in each column. Under the
+``majority`` policy every non-gap token receives weight 1.0. The
+``score_weighted`` policy reads per-token acoustic scores; ``lm_weighted``
+adds a language model component; ``posterior_weighted`` multiplies by
+per-token posteriors; and ``confidence_weighted`` uses one scalar per
+hypothesis. The winner is the token with the highest total weight; ties
+are broken by the configured ``tie_break`` rule.
+
+Null policies
+-------------
+``null_policy="keep"`` (default): gap columns emit the ``null_token`` in
+the output, matching the original behaviour. ``null_policy="drop"``
+removes gap columns from the fused token list entirely.
+``null_policy="vote"`` treats the gap symbol as a regular candidate that
+can win the vote.
+
+Tie-break rules
+---------------
+``"lexicographic"`` (default) sorts tied tokens alphabetically.
+``"first"`` picks the token from the earliest hypothesis in grid order.
+``"highest_score"`` picks the tied token whose best supporting hypothesis
+had the highest per-token weight. ``"seeded"`` uses a deterministic
+seeded RNG (``config.seed``).
+
+Example usage::
+
+    from hypofuse.fusion import FusionConfig, fuse
+    from hypofuse.multi_align import progressive_align
+
+    grid = progressive_align([("the", "cat"), ("a", "cat"), ("the", "dog")])
+    result = fuse(grid, config=FusionConfig(policy="majority"))
+    print(result.tokens)      # ("the", "cat")
+    print(result.confidences)  # (0.667, 1.0)
+
+The :func:`fuse` entry point takes the output of
+:func:`multi_align.progressive_align` together with optional per-token
+scores from each hypothesis, applies a voting policy to pick a token per
+grid column, and emits the fused token sequence with per-token fused
+confidences.
 """
 
 from __future__ import annotations
