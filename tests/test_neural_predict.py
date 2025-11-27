@@ -26,9 +26,15 @@ def test_model_auc_above_chance() -> None:
 
 @pytest.mark.model
 def test_model_auc_at_least_baseline_minus_tolerance() -> None:
+    """With enough full-batch steps the tiny MLP reaches the raw-feature AUC.
+
+    30 epochs at lr=0.05 is not converged for this feature scale (the loss is
+    still falling), so this test uses 200 epochs at lr=0.1; the shorter run is
+    covered by ``test_model_auc_above_chance``.
+    """
     features, labels = synthetic_confidence_dataset(n=200, seed=1)
     model = NeuralConfidenceModel(input_dim=len(FEATURE_NAMES), seed=1)
-    model.fit(features, labels, epochs=30, lr=0.05)
+    model.fit(features, labels, epochs=200, lr=0.1)
     probs = model.predict_proba(features)
     model_auc = auc_from_scores(probs, labels)
     # Baseline: raw max-posterior feature (index 0 in FEATURE_NAMES)
