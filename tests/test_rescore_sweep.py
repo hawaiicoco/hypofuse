@@ -5,8 +5,9 @@ from __future__ import annotations
 from hypofuse.ngram import NgramLM
 from hypofuse.rescore import (
     ScoredHypothesis,
-    invariance_under_acoustic_change,
+    lm_weight_monotonicity,
     lm_weight_sweep,
+    rescore_lm,
     rescore_nbest,
 )
 
@@ -36,10 +37,20 @@ def test_weight_sweep_zero_weight_picks_acoustic_top() -> None:
     assert rows[0][2] == "a b"
 
 
-def test_invariance_returns_true() -> None:
+def test_monotonicity_holds_for_consistent_scores() -> None:
     sents = [["a", "b"]]
     lm = NgramLM.train(sents, order=2)
-    assert invariance_under_acoustic_change(_two_hyp_nbest(), lm) is True
+    hyps = _two_hyp_nbest()
+    scored = [
+        ScoredHypothesis(
+            text=h.text,
+            tokens=h.tokens,
+            acoustic_log10=h.acoustic_log10,
+            lm_log10=rescore_lm(h, lm),
+        )
+        for h in hyps
+    ]
+    assert lm_weight_monotonicity(scored, lm) is True
 
 
 def test_rescore_returns_top_hypothesis() -> None:

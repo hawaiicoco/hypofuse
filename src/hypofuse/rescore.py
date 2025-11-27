@@ -104,13 +104,33 @@ def lm_weight_sweep(
     return rows
 
 
-def invariance_under_acoustic_change(nbest: Sequence[ScoredHypothesis], lm: NgramLM) -> bool:
-    """Re-ranking is monotone in LM weight when acoustic scores are tied."""
+def lm_weight_monotonicity(
+    nbest: Sequence[ScoredHypothesis],
+    lm: NgramLM,
+    weights: tuple[float, ...] = (0.0, 0.5, 1.0, 2.0),
+) -> bool:
+    """Verify LM-score monotonicity for tied acoustic scores.
+
+    For every pair (a, b), if ``a.lm_log10 >= b.lm_log10`` and
+    ``a.acoustic_log10 == b.acoustic_log10``, then a must not rank
+    below b at any of the given weights."""
     if not nbest:
         return True
-    weights = [0.0, 0.1, 0.2, 0.5, 1.0]
-    rank_history = []
-    for w in weights:
-        ranked = rescore_nbest(nbest, lm, w)
-        rank_history.append([hyp.text for hyp in ranked])
+    lm_scores = [rescore_lm(h, lm) for h in nbest]
+    for i in range(len(nbest)):
+        for j in range(i + 1, len(nbest)):
+            a, b = nbest[i], nbest[j]
+            if a.acoustic_log10 != b.acoustic_log10:
+                continue
+            pairs: list[tuple[int, int]] = []
+            if a.lm_log10 >= b.lm_log10:
+                pairs.append((i, j))
+            if b.lm_log10 >= a.lm_log10:
+                pairs.append((j, i))
+            for idx_must, idx_other in pairs:
+                for w in weights:
+                    s_must = nbest[idx_must].acoustic_log10 + w * lm_scores[idx_must]
+                    s_other = nbest[idx_other].acoustic_log10 + w * lm_scores[idx_other]
+                    if s_must < s_other:
+                        return False
     return True
