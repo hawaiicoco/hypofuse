@@ -180,6 +180,16 @@ def substitution_pairs(
     return counts
 
 
+def _cer_rates(scores: Sequence[UtteranceScore]) -> list[float]:
+    """Per-utterance character error rates, in input order."""
+    return [character_error_rate("".join(it.reference), "".join(it.hypothesis)) for it in scores]
+
+
+def _wer_rates(scores: Sequence[UtteranceScore]) -> list[float]:
+    """Per-utterance word error rates, in input order."""
+    return [word_error_rate(list(it.reference), list(it.hypothesis)) for it in scores]
+
+
 def paired_bootstrap_ci(
     system_a: Sequence[UtteranceScore],
     system_b: Sequence[UtteranceScore],
@@ -192,41 +202,31 @@ def paired_bootstrap_ci(
         raise ValueError("system lists must have the same length")
     rng = random.Random(seed)
     n = len(system_a)
+    # Each utterance contributes a fixed rate, so the rates are computed once
+    # and a bootstrap replicate only re-averages them. That leaves the
+    # estimator bit-identical while replacing O(n_bootstrap * n) alignments
+    # with O(n) of them.
+    cer_a_rates = _cer_rates(system_a)
+    cer_b_rates = _cer_rates(system_b)
+    wer_a_rates = _wer_rates(system_a)
+    wer_b_rates = _wer_rates(system_b)
     deltas_cer: list[float] = []
     deltas_wer: list[float] = []
     for _ in range(n_bootstrap):
         idxs = [rng.randrange(n) for _ in range(n)]
-        a = [system_a[i] for i in idxs]
-        b = [system_b[i] for i in idxs]
-        cer_a = statistics.fmean(
-            character_error_rate("".join(it.reference), "".join(it.hypothesis)) for it in a
-        )
-        cer_b = statistics.fmean(
-            character_error_rate("".join(it.reference), "".join(it.hypothesis)) for it in b
-        )
-        wer_a = statistics.fmean(
-            word_error_rate(list(it.reference), list(it.hypothesis)) for it in a
-        )
-        wer_b = statistics.fmean(
-            word_error_rate(list(it.reference), list(it.hypothesis)) for it in b
-        )
+        cer_a = statistics.fmean([cer_a_rates[i] for i in idxs])
+        cer_b = statistics.fmean([cer_b_rates[i] for i in idxs])
+        wer_a = statistics.fmean([wer_a_rates[i] for i in idxs])
+        wer_b = statistics.fmean([wer_b_rates[i] for i in idxs])
         deltas_cer.append(cer_b - cer_a)
         deltas_wer.append(wer_b - wer_a)
     alpha = (1 - confidence) / 2
     lo_c, hi_c = _quantile(deltas_cer, alpha), _quantile(deltas_cer, 1 - alpha)
     lo_w, hi_w = _quantile(deltas_wer, alpha), _quantile(deltas_wer, 1 - alpha)
-    cer_a_all = statistics.fmean(
-        character_error_rate("".join(it.reference), "".join(it.hypothesis)) for it in system_a
-    )
-    cer_b_all = statistics.fmean(
-        character_error_rate("".join(it.reference), "".join(it.hypothesis)) for it in system_b
-    )
-    wer_a_all = statistics.fmean(
-        word_error_rate(list(it.reference), list(it.hypothesis)) for it in system_a
-    )
-    wer_b_all = statistics.fmean(
-        word_error_rate(list(it.reference), list(it.hypothesis)) for it in system_b
-    )
+    cer_a_all = statistics.fmean(cer_a_rates)
+    cer_b_all = statistics.fmean(cer_b_rates)
+    wer_a_all = statistics.fmean(wer_a_rates)
+    wer_b_all = statistics.fmean(wer_b_rates)
     return ComparisonRow(
         system_a="A",
         system_b="B",
