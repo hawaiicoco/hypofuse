@@ -65,6 +65,7 @@ def rescore_nbest(
     lm: NgramLM,
     lm_weight: float,
     acoustic_weight: float = 1.0,
+    insertion_penalty: float = 0.0,
 ) -> tuple[ScoredHypothesis, ...]:
     """Re-rank an n-best list with shallow fusion and return the new order."""
     scored = [
@@ -78,7 +79,13 @@ def rescore_nbest(
     ]
     ranked = sorted(
         scored,
-        key=lambda h: -(acoustic_weight * h.acoustic_log10 + lm_weight * h.lm_log10),
+        key=lambda h: (
+            -(
+                acoustic_weight * h.acoustic_log10
+                + lm_weight * h.lm_log10
+                - insertion_penalty * len(h.tokens)
+            )
+        ),
     )
     return tuple(ranked)
 
@@ -88,6 +95,7 @@ def lm_weight_sweep(
     reference: Sequence[str],
     lm: NgramLM,
     weights: Sequence[float] = (0.0, 0.1, 0.2, 0.5, 1.0),
+    insertion_penalty: float = 0.0,
 ) -> list[tuple[float, float, str]]:
     """Return [(weight, CER-or-WER, chosen_text)] for each weight.
 
@@ -96,7 +104,7 @@ def lm_weight_sweep(
     rows: list[tuple[float, float, str]] = []
     use_cer = any(len(t) > 1 for hyp in nbest for t in hyp.tokens)
     for w in weights:
-        ranked = rescore_nbest(nbest, lm, w)
+        ranked = rescore_nbest(nbest, lm, w, insertion_penalty=insertion_penalty)
         if not ranked:
             rows.append((w, float("inf"), ""))
             continue
