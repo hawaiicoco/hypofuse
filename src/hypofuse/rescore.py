@@ -49,10 +49,15 @@ def shallow_fusion_score(
     lm: NgramLM,
     lm_weight: float,
     acoustic_weight: float = 1.0,
+    insertion_penalty: float = 0.0,
 ) -> float:
     """Combine acoustic log10 + LM-weight * LM log10 into a single score."""
     lm_score = rescore_lm(hyp, lm)
-    return acoustic_weight * hyp.acoustic_log10 + lm_weight * lm_score
+    return (
+        acoustic_weight * hyp.acoustic_log10
+        + lm_weight * lm_score
+        - insertion_penalty * len(hyp.tokens)
+    )
 
 
 def rescore_nbest(
