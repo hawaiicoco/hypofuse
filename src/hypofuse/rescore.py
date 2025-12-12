@@ -39,7 +39,7 @@ def rescore_lm(hyp: ScoredHypothesis, lm: NgramLM) -> float:
     score = 0.0
     for i in range(lm.order - 1, len(sequence)):
         ng = tuple(sequence[i - lm.order + 1 : i + 1])
-        p = max(lm.prob_katz(ng), 1e-12)
+        p = max(lm.prob(ng), 1e-12)
         score += math.log10(p)
     return score
 
