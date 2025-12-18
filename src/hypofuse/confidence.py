@@ -12,6 +12,7 @@ evaluate calibration on their own labeled data.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -144,3 +145,40 @@ def utterance_confidence_from_vote(
                     n_match += 1
         confidences.append(n_match / n if n else 0.0)
     return confidences
+
+
+def brier_score(probs: Sequence[float], labels: Sequence[float]) -> float:
+    """Brier score: mean squared error between probabilities and binary labels.
+
+    Lower is better. Perfect predictions yield 0.0. Raises ``ValueError``
+    on mismatched lengths, empty input, or non-binary labels.
+    """
+    if len(probs) != len(labels):
+        raise ValueError("probs and labels must have the same length")
+    if not probs:
+        raise ValueError("probs and labels must not be empty")
+    total = 0.0
+    for p, y in zip(probs, labels, strict=True):
+        if y not in (0, 1):
+            raise ValueError("labels must be binary (0 or 1)")
+        total += (p - y) ** 2
+    return total / len(probs)
+
+
+def log_loss(probs: Sequence[float], labels: Sequence[float], eps: float = 1e-15) -> float:
+    """Log loss (cross-entropy) with clipping to avoid ``log(0)``.
+
+    Probabilities are clipped to ``[eps, 1 - eps]`` before taking the
+    logarithm. Lower is better.
+    """
+    if len(probs) != len(labels):
+        raise ValueError("probs and labels must have the same length")
+    if not probs:
+        raise ValueError("probs and labels must not be empty")
+    total = 0.0
+    for p, y in zip(probs, labels, strict=True):
+        if y not in (0, 1):
+            raise ValueError("labels must be binary (0 or 1)")
+        p_clip = max(eps, min(1.0 - eps, p))
+        total += -(y * math.log(p_clip) + (1 - y) * math.log(1.0 - p_clip))
+    return total / len(probs)
