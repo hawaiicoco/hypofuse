@@ -30,13 +30,24 @@ def expected_calibration_error(
     confidences: Sequence[float],
     accuracies: Sequence[float],
     n_bins: int = 10,
+    binning: str = "uniform",
 ) -> float:
-    """Compute ECE with uniform-width bins on [0, 1]."""
+    """Compute ECE with uniform-width or quantile bins on [0, 1].
+
+    ``binning`` is ``"uniform"`` (default, equal-width bins) or
+    ``"quantile"`` (nearest-rank, approximately equal count per bin;
+    ties may cause slight count imbalance).
+    """
     if len(confidences) != len(accuracies):
         raise ValueError("confidences and accuracies must align")
     if n_bins < 1:
         raise ValueError("n_bins must be >= 1")
-    bins = _bin_counts(confidences, accuracies, n_bins)
+    if binning == "uniform":
+        bins = _bin_counts(confidences, accuracies, n_bins)
+    elif binning == "quantile":
+        bins = _quantile_bin_counts(confidences, accuracies, n_bins)
+    else:
+        raise ValueError(f"unknown binning: {binning!r}")
     total = max(1, sum(b.count for b in bins))
     ece = sum(abs(b.avg_confidence - b.avg_accuracy) * b.count for b in bins) / total
     return ece
@@ -68,6 +79,34 @@ def _bin_counts(
                 lower=i / n_bins,
                 upper=(i + 1) / n_bins,
                 count=len(bins[i]),
+                avg_confidence=sum(cs) / len(cs),
+                avg_accuracy=sum(a_s) / len(a_s),
+            )
+        )
+    return out
+
+
+def _quantile_bin_counts(
+    confidences: Sequence[float], accuracies: Sequence[float], n_bins: int
+) -> list[CalibrationBin]:
+    """Bin by quantile: nearest-rank, approximately equal count per bin."""
+    n = len(confidences)
+    indexed = sorted(range(n), key=lambda i: confidences[i])
+    raw: list[list[tuple[float, float]]] = [[] for _ in range(n_bins)]
+    for rank, idx in enumerate(indexed):
+        bin_idx = min(n_bins - 1, rank * n_bins // n) if n > 0 else 0
+        raw[bin_idx].append((confidences[idx], accuracies[idx]))
+    out: list[CalibrationBin] = []
+    for i in range(n_bins):
+        if not raw[i]:
+            out.append(CalibrationBin(0.0, 0.0, 0, 0.0, 0.0))
+            continue
+        cs, a_s = zip(*raw[i], strict=True)
+        out.append(
+            CalibrationBin(
+                lower=min(cs),
+                upper=max(cs),
+                count=len(raw[i]),
                 avg_confidence=sum(cs) / len(cs),
                 avg_accuracy=sum(a_s) / len(a_s),
             )
