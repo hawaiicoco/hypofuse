@@ -182,3 +182,38 @@ def log_loss(probs: Sequence[float], labels: Sequence[float], eps: float = 1e-15
         p_clip = max(eps, min(1.0 - eps, p))
         total += -(y * math.log(p_clip) + (1 - y) * math.log(1.0 - p_clip))
     return total / len(probs)
+
+
+@dataclass(frozen=True)
+class ReliabilityCurve:
+    """Reliability diagram data with one entry per bin.
+
+    Empty bins have ``count=0``, ``mean_predicted=0.0`` and
+    ``observed_frequency=0.0``. Probabilities exactly on a bin edge
+    land in the upper bin, matching :func:`reliability_bins`.
+    """
+
+    bin_edges: tuple[float, ...]
+    mean_predicted: tuple[float, ...]
+    observed_frequency: tuple[float, ...]
+    counts: tuple[int, ...]
+
+
+def reliability_curve(
+    probs: Sequence[float],
+    labels: Sequence[float],
+    bins: int = 10,
+) -> ReliabilityCurve:
+    """Compute reliability curve data using the same bin rule as reliability_bins."""
+    if len(probs) != len(labels):
+        raise ValueError("probs and labels must have the same length")
+    if bins < 1:
+        raise ValueError("bins must be >= 1")
+    raw = _bin_counts(probs, labels, bins)
+    edges = tuple(i / bins for i in range(bins + 1))
+    return ReliabilityCurve(
+        bin_edges=edges,
+        mean_predicted=tuple(b.avg_confidence for b in raw),
+        observed_frequency=tuple(b.avg_accuracy for b in raw),
+        counts=tuple(b.count for b in raw),
+    )
