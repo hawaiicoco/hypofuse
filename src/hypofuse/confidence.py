@@ -135,6 +135,25 @@ def temperature_scale(scores: Sequence[float], temperature: float = 1.0) -> list
     return [e / z for e in exps]
 
 
+def _validate_piecewise_monotone(
+    breakpoints: Sequence[float],
+    slopes: Sequence[float],
+    intercepts: Sequence[float],
+) -> None:
+    """Raise CalibrationError if the piecewise function is not monotone."""
+    for i, slope in enumerate(slopes):
+        if slope < 0:
+            raise CalibrationError(f"segment {i} has negative slope; piecewise must be monotone")
+    for i in range(len(breakpoints) - 1):
+        bp_next = breakpoints[i + 1]
+        val_end = slopes[i] * bp_next + intercepts[i]
+        val_start = slopes[i + 1] * bp_next + intercepts[i + 1]
+        if val_start < val_end:
+            raise CalibrationError(
+                f"function decreases at breakpoint {bp_next}; piecewise must be monotone"
+            )
+
+
 def piecewise_calibrate(
     scores: Sequence[float],
     breakpoints: Sequence[float],
@@ -146,9 +165,13 @@ def piecewise_calibrate(
     ``breakpoints`` are the lower edges of each segment. The number of
     slopes/intercepts must equal the number of breakpoints. Scores outside
     the outermost breakpoints use the closest segment.
+
+    Raises :class:`CalibrationError` when the piecewise function is not
+    monotone non-decreasing.
     """
     if len(slopes) != len(intercepts) or len(slopes) != len(breakpoints):
         raise ValueError("slopes, intercepts, and breakpoints must align")
+    _validate_piecewise_monotone(breakpoints, slopes, intercepts)
     out: list[float] = []
     for s in scores:
         idx = 0
@@ -341,6 +364,22 @@ def calibrate(
         cal = fit_logistic(scores, labels)
         return cal.apply(scores)
     raise ValueError(f"unknown method: {method!r}")
+
+
+def preserves_ranking(a: Sequence[float], b: Sequence[float]) -> bool:
+    """True if a and b share the same strict ordering.
+
+    For every pair (i, j): a[i] < a[j] implies b[i] < b[j], and
+    a[i] > a[j] implies b[i] > b[j]. Ties in a are not constrained.
+    """
+    if len(a) != len(b):
+        raise ValueError("sequences must have the same length")
+    n = len(a)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if (a[i] < a[j] and b[i] >= b[j]) or (a[i] > a[j] and b[i] <= b[j]):
+                return False
+    return True
 
 
 def fit_temperature(
