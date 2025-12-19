@@ -16,6 +16,8 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from hypofuse.exceptions import CalibrationError
+
 
 @dataclass(frozen=True)
 class CalibrationBin:
@@ -256,3 +258,83 @@ def reliability_curve(
         observed_frequency=tuple(b.avg_accuracy for b in raw),
         counts=tuple(b.count for b in raw),
     )
+
+
+def _sigmoid(x: float) -> float:
+    """Numerically stable sigmoid."""
+    if x >= 0:
+        return 1.0 / (1.0 + math.exp(-x))
+    e = math.exp(x)
+    return e / (1.0 + e)
+
+
+@dataclass(frozen=True)
+class LogisticCalibrator:
+    """Platt-style logistic calibrator: ``sigmoid(coef * score + intercept)``.
+
+    Attributes:
+        coef: slope of the logistic transform.
+        intercept: bias of the logistic transform.
+    """
+
+    coef: float
+    intercept: float
+
+    def apply(self, scores: Sequence[float]) -> list[float]:
+        """Return calibrated probabilities in (0, 1)."""
+        return [_sigmoid(self.coef * s + self.intercept) for s in scores]
+
+
+def fit_logistic(
+    scores: Sequence[float],
+    labels: Sequence[float],
+    iterations: int = 200,
+    lr: float = 0.1,
+    l2: float = 0.0,
+) -> LogisticCalibrator:
+    """Fit a logistic calibrator via full-batch gradient descent.
+
+    Minimises ``NLL + (l2 / 2) * coef ** 2`` where
+    ``p = sigmoid(coef * s + intercept)``.
+
+    Raises :class:`CalibrationError` when all labels share one class
+    (the optimum would diverge).
+    """
+    if len(scores) != len(labels):
+        raise ValueError("scores and labels must have the same length")
+    if not scores:
+        raise CalibrationError("need at least one sample")
+    unique = set(labels)
+    if unique <= {0} or unique <= {1}:
+        raise CalibrationError("all labels are the same class; logistic fit would diverge")
+    coef = 0.0
+    intercept = 0.0
+    n = len(scores)
+    for _ in range(iterations):
+        grad_a = 0.0
+        grad_b = 0.0
+        for s, y in zip(scores, labels, strict=True):
+            p = _sigmoid(coef * s + intercept)
+            err = p - y
+            grad_a += err * s
+            grad_b += err
+        coef -= lr * (grad_a / n + l2 * coef)
+        intercept -= lr * (grad_b / n)
+    return LogisticCalibrator(coef=coef, intercept=intercept)
+
+
+def calibrate(
+    scores: Sequence[float],
+    labels: Sequence[float],
+    method: str = "temperature",
+) -> list[float]:
+    """Dispatch to a calibration method and return calibrated scores.
+
+    Supported methods: ``"logistic"`` and ``"piecewise"``.
+    """
+    if method == "piecewise":
+        return piecewise_calibrate(scores, [0.0], [1.0], [0.0])
+    if method == "logistic":
+        cal = fit_logistic(scores, labels)
+        return cal.apply(scores)
+    raise ValueError(f"unknown method: {method!r}")
