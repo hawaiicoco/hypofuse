@@ -330,11 +330,58 @@ def calibrate(
 ) -> list[float]:
     """Dispatch to a calibration method and return calibrated scores.
 
-    Supported methods: ``"logistic"`` and ``"piecewise"``.
+    Supported methods: ``"temperature"``, ``"logistic"``, ``"piecewise"``.
     """
+    if method == "temperature":
+        temp = fit_temperature(scores, labels)
+        return [_sigmoid(s / temp) for s in scores]
     if method == "piecewise":
         return piecewise_calibrate(scores, [0.0], [1.0], [0.0])
     if method == "logistic":
         cal = fit_logistic(scores, labels)
         return cal.apply(scores)
     raise ValueError(f"unknown method: {method!r}")
+
+
+def fit_temperature(
+    scores: Sequence[float],
+    labels: Sequence[float],
+    grid: Sequence[float] | None = None,
+    iterations: int | None = None,
+) -> float:
+    """Find the temperature minimising NLL via deterministic grid search.
+
+    The default grid spans 0.05 to 5.0 in steps of 0.05. ``iterations``
+    is accepted for API symmetry but unused (grid search is exhaustive).
+
+    Raises ``ValueError`` for empty or non-positive grid values.
+    """
+    _ = iterations
+    if grid is None:
+        grid = [round(0.05 * i, 2) for i in range(1, 101)]
+    if not grid:
+        raise ValueError("grid must not be empty")
+    for t in grid:
+        if t <= 0:
+            raise ValueError("grid values must be positive")
+    if len(scores) != len(labels):
+        raise ValueError("scores and labels must have the same length")
+    if not scores:
+        raise ValueError("need at least one sample")
+    eps = 1e-15
+
+    def _score_nll(temp: float) -> float:
+        total = 0.0
+        for s, y in zip(scores, labels, strict=True):
+            p = max(eps, min(1.0 - eps, _sigmoid(s / temp)))
+            total += -(y * math.log(p) + (1 - y) * math.log(1.0 - p))
+        return total
+
+    best_temp = grid[0]
+    best_nll = _score_nll(best_temp)
+    for t in grid[1:]:
+        v = _score_nll(t)
+        if v < best_nll:
+            best_nll = v
+            best_temp = t
+    return best_temp
