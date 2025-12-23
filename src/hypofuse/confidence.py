@@ -13,7 +13,7 @@ evaluate calibration on their own labeled data.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
 
 from hypofuse.exceptions import CalibrationError
@@ -413,6 +413,29 @@ def utterance_confidence(
             product *= t
         return product
     raise ValueError(f"unknown aggregation: {aggregation!r}")
+
+
+def agreement_confidence(
+    columns: Sequence[Sequence[Hashable]],
+    gap: Hashable = "*",
+) -> list[float]:
+    """Per-column agreement: fraction of non-gap tokens matching the majority.
+
+    Matches the confidence computation used by the majority-vote fusion
+    policy. Empty columns (all gaps) return 0.0.
+    """
+    result: list[float] = []
+    for col in columns:
+        tokens = [t for t in col if t != gap]
+        if not tokens:
+            result.append(0.0)
+            continue
+        counts: dict[Hashable, int] = {}
+        for t in tokens:
+            counts[t] = counts.get(t, 0) + 1
+        best = max(counts.values())
+        result.append(best / len(tokens))
+    return result
 
 
 def fit_temperature(
