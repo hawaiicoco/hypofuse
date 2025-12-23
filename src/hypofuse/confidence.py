@@ -382,6 +382,39 @@ def preserves_ranking(a: Sequence[float], b: Sequence[float]) -> bool:
     return True
 
 
+def utterance_confidence(
+    token_confidences: Sequence[float],
+    aggregation: str = "mean",
+) -> float:
+    """Aggregate token confidences into an utterance-level score.
+
+    Aggregation methods:
+
+    - ``"mean"``: arithmetic mean of token confidences.
+    - ``"min"``: minimum token confidence.
+    - ``"geometric"``: geometric mean (product raised to ``1/n``).
+    - ``"length_normalized"``: product of all token confidences (joint
+      probability under independence; penalises longer utterances).
+
+    Raises ``ValueError`` on empty input.
+    """
+    if not token_confidences:
+        raise ValueError("token_confidences must not be empty")
+    if aggregation == "mean":
+        return sum(token_confidences) / len(token_confidences)
+    if aggregation == "min":
+        return min(token_confidences)
+    if aggregation == "geometric":
+        log_sum = sum(math.log(max(t, 1e-300)) for t in token_confidences)
+        return math.exp(log_sum / len(token_confidences))
+    if aggregation == "length_normalized":
+        product = 1.0
+        for t in token_confidences:
+            product *= t
+        return product
+    raise ValueError(f"unknown aggregation: {aggregation!r}")
+
+
 def fit_temperature(
     scores: Sequence[float],
     labels: Sequence[float],
