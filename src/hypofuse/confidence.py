@@ -17,6 +17,7 @@ from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
 
 from hypofuse.exceptions import CalibrationError
+from hypofuse.util import seeded
 
 
 @dataclass(frozen=True)
@@ -413,6 +414,36 @@ def utterance_confidence(
             product *= t
         return product
     raise ValueError(f"unknown aggregation: {aggregation!r}")
+
+
+def synthetic_calibration_set(
+    n: int = 2000,
+    seed: int = 0,
+    sharpness: float = 1.0,
+) -> tuple[list[float], list[int], list[float]]:
+    """Generate a synthetic calibration dataset.
+
+    Scores are drawn uniformly from [0, 1]. The true correctness
+    probability is ``clip(score ** sharpness, 0, 1)``. Labels are
+    Bernoulli draws with that probability using a seeded RNG.
+
+    This is a *synthetic* distribution with a constructed relationship,
+    not an ASR result.
+
+    Returns ``(scores, labels, p_true)``.
+    """
+    rng = seeded(seed)
+    scores: list[float] = []
+    labels: list[int] = []
+    p_true: list[float] = []
+    for _ in range(n):
+        s = rng.random()
+        p = max(0.0, min(1.0, s**sharpness))
+        y = 1 if rng.random() < p else 0
+        scores.append(s)
+        labels.append(y)
+        p_true.append(p)
+    return scores, labels, p_true
 
 
 def agreement_confidence(
