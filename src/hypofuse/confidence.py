@@ -12,6 +12,7 @@ evaluate calibration on their own labeled data.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
@@ -444,6 +445,42 @@ def synthetic_calibration_set(
         labels.append(y)
         p_true.append(p)
     return scores, labels, p_true
+
+
+def calibration_report(
+    probs: Sequence[float],
+    labels: Sequence[float],
+    bins: int = 10,
+) -> dict[str, object]:
+    """Compute a calibration report with ECE, Brier, log loss and per-bin rows.
+
+    Keys are in stable alphabetical order: ``binning``, ``bins``,
+    ``brier_score``, ``ece``, ``log_loss``.
+    """
+    int_labels = [int(y) for y in labels]
+    raw_bins = reliability_bins(probs, labels, n_bins=bins)
+    bin_rows = [
+        {
+            "avg_accuracy": b.avg_accuracy,
+            "avg_confidence": b.avg_confidence,
+            "count": b.count,
+            "lower": b.lower,
+            "upper": b.upper,
+        }
+        for b in raw_bins
+    ]
+    return {
+        "binning": "uniform",
+        "bins": bin_rows,
+        "brier_score": brier_score(probs, int_labels),
+        "ece": expected_calibration_error(probs, labels, n_bins=bins),
+        "log_loss": log_loss(probs, int_labels),
+    }
+
+
+def calibration_report_to_json(report: dict[str, object]) -> str:
+    """Serialize a calibration report to JSON with sorted keys and 2-space indent."""
+    return json.dumps(report, sort_keys=True, indent=2)
 
 
 def agreement_confidence(
