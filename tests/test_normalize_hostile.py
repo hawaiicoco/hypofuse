@@ -11,9 +11,14 @@ def test_combining_marks_are_normalized() -> None:
     assert composed == "\u0144"
 
 
-def test_zero_width_joiner_is_preserved() -> None:
-    # The pipeline does not currently strip zero-width characters; document it.
+def test_zero_width_joiner_stripped_by_default() -> None:
     out = normalize("a\u200db")
+    assert out == "ab"
+
+
+def test_zero_width_joiner_preserved_when_control_off() -> None:
+    cfg = NormalizationConfig(remove_control=False)
+    out = normalize("a\u200db", cfg)
     assert out == "a\u200db"
 
 
@@ -24,16 +29,20 @@ def test_hostile_input_does_not_crash() -> None:
 
 
 def test_mixed_scripts_use_word_tokenization_when_no_cjk() -> None:
-    assert tokenize("café 123") == ("café", "123")
+    assert tokenize("caf\u00e9 123") == ("caf\u00e9", "123")
 
 
 def test_cjk_detection_uses_char_tokenization() -> None:
-    out = tokenize("Hello 世界")
-    assert out == ("h", "e", "l", "l", "o", "世", "界") or out == (
-        "hello",
-        "世",
-        "界",
-    )
+    out = tokenize("Hello \u4e16\u754c")
+    assert out == (
+        "h",
+        "e",
+        "l",
+        "l",
+        "o",
+        "\u4e16",
+        "\u754c",
+    ) or out == ("hello", "\u4e16", "\u754c")
 
 
 def test_strip_punctuation_keeps_internal_apostrophes_off() -> None:
@@ -42,4 +51,4 @@ def test_strip_punctuation_keeps_internal_apostrophes_off() -> None:
 
 
 def test_fullwidth_punctuation_also_stripped() -> None:
-    assert normalize("ＡＢ，Ｃ。") == "abc"
+    assert normalize("\uff21\uff22\uff0c\uff23\u3002") == "abc"
