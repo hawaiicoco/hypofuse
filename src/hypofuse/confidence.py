@@ -1,13 +1,37 @@
-"""Token and utterance confidence plus lightweight calibration.
+"""Token and utterance confidence, calibration, and evaluation.
 
-Calibration uses temperature scaling and a deterministic piecewise-linear
-relabeller. ECE (Expected Calibration Error) is computed with deterministic
-bin boundaries. There is no scipy dependency.
+Calibrators
+-----------
+- :func:`temperature_scale` -- softmax temperature scaling (T > 0 preserves
+  ranking; T = 1 is the standard softmax on logits).
+- :func:`fit_temperature` -- deterministic grid search for the temperature
+  that minimises negative log-likelihood.
+- :func:`piecewise_calibrate` -- deterministic piecewise-linear transform,
+  validated to be monotone non-decreasing.
+- :class:`LogisticCalibrator` / :func:`fit_logistic` -- Platt-style logistic
+  calibrator fitted with full-batch gradient descent (no scipy).
+- :func:`calibrate` -- dispatcher over the above methods.
 
-Documentation honest disclaimer: this module calibrates *synthetic* score
-distributions on known ground truth. It does not claim state-of-the-art
-calibration on real ASR hypotheses; downstream users are expected to
-evaluate calibration on their own labeled data.
+Metrics
+-------
+- :func:`expected_calibration_error` -- ECE with uniform or quantile bins.
+- :func:`reliability_bins` / :func:`reliability_curve` -- reliability data.
+- :func:`brier_score` / :func:`log_loss` -- proper scoring rules.
+- :func:`calibration_report` / :func:`calibration_report_to_json` -- stable
+  serialisation for drift detection.
+
+Rank preservation
+-----------------
+:func:`preserves_ranking` verifies that strictly monotone calibrators
+(temperature with T > 0, logistic with positive coefficient, monotone
+piecewise) do not invert score orderings.
+
+Evaluation
+----------
+:func:`synthetic_calibration_set` generates scores with a known ground-truth
+relationship for calibration experiments. This is a synthetic distribution
+with a constructed relationship -- no real ASR calibration result is claimed,
+and no pretrained model is involved.
 """
 
 from __future__ import annotations
