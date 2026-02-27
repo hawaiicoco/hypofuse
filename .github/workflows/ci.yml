@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Cache pip downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Create venv and install project
+        run: |
+          uv venv .venv --python ${{ matrix.python-version }}
+          uv pip install --python .venv/bin/python -e ".[dev]"
+
+      - name: Install CPU-only torch
+        run: |
+          uv pip install --python .venv/bin/python \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            "torch>=2.2"
+
+      - name: Build wheel
+        run: make build
+
+      - name: Run all tests
+        run: make test-all
+
+      - name: Format check
+        run: make format-check
+
+      - name: Lint
+        run: make lint
+
+      - name: Packaging smoke test
+        run: .venv/bin/python scripts/check_package.py
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Create venv and install project
+        run: |
+          uv venv .venv --python 3.13
+          uv pip install --python .venv/bin/python -e ".[dev]"
+
+      - name: Mypy typecheck
+        run: make typecheck
