@@ -1,0 +1,51 @@
+name: Feature Request
+description: Propose a new feature for hypofuse
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-sketch
+    attributes:
+      label: Proposed API sketch
+      description: >
+        Show the function signature, CLI flag, or config field you have in
+        mind.
+      render: python
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Change scope
+      options:
+        - New manifest schema field
+        - New CLI flag or subcommand
+        - New library function
+        - Documentation or example improvement
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Design constraints
+      description: >
+        hypofuse core must stay offline, deterministic, and numpy-only for
+        required deps.  Torch stays optional.
+      options:
+        - label: This feature does not require network access at runtime
+          required: true
+        - label: This feature is deterministic given a fixed seed
+          required: true
+        - label: Any new required dependency is numpy-only (torch stays optional)
+          required: true
