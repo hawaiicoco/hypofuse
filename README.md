@@ -29,3 +29,49 @@ hypofuse 实现了从假设列表到融合结果的完整后处理流水线。�
 - 不附带、不下载任何预训练权重
 - 可选的 `torch` extra 仅用于演示置信度模型，且仅使用 CPU
 - 项目中没有任何地方声称真实基准测试结果
+
+## 安装
+
+```bash
+pip install hypofuse
+```
+
+开发依赖：
+
+```bash
+pip install "hypofuse[dev]"
+```
+
+可选 torch extra（仅 CPU，用于演示置信度模型）：
+
+```bash
+pip install --extra-index-url https://download.pytorch.org/whl/cpu "hypofuse[torch]"
+```
+
+## 快速开始
+
+运行合成数据演示：
+
+```bash
+hypofuse demo --out demo_out --utterances 5 --n-best 3 --seed 0
+```
+
+使用库 API：
+
+```python
+from hypofuse.normalize import normalize, NormalizationConfig
+from hypofuse.alignment import word_error_rate
+from hypofuse.multi_align import progressive_align
+from hypofuse.fusion import fuse, FusionConfig
+
+ref = normalize("The cat sat on the mat")
+hyp = normalize("the cat sit on a mat")
+wer = word_error_rate(ref.split(), hyp.split())
+
+grid = progressive_align([
+    ["the", "cat", "sat"],
+    ["the", "cat", "sit"],
+    ["a", "cat", "sat"],
+])
+result = fuse(grid, config=FusionConfig(policy="majority"))
+```
