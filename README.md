@@ -75,3 +75,20 @@ grid = progressive_align([
 ])
 result = fuse(grid, config=FusionConfig(policy="majority"))
 ```
+
+## CLI 子命令
+
+| 子命令 | 说明 | 示例 |
+|---|---|---|
+| `validate` | 校验 JSONL manifest | `hypofuse validate data.jsonl --schema hypofuse.nbest` |
+| `normalize` | 归一化文本对 | `hypofuse normalize --reference "Hello!" --hypothesis "hello" --language en` |
+| `score` | 计算 CER / WER | `hypofuse score --nbest n.jsonl --reference r.jsonl --metric both` |
+| `align` | 多假设对齐 | `hypofuse align --nbest n.jsonl --json` |
+| `fuse` | 融合 n-best | `hypofuse fuse --nbest n.jsonl --policy majority --tie-break lexicographic` |
+| `rescore` | LM 重打分 | `hypofuse rescore --nbest n.jsonl --arpa lm.arpa --lm-weight 0.5 --top 1` |
+| `calibrate` | 置信度校准 | `hypofuse calibrate --scores "0.1,0.5,0.9" --temperature 1.5` |
+| `analyze` | 分片误差分析 | `hypofuse analyze --nbest n.jsonl --reference r.jsonl --slice-by speaker_group` |
+| `report` | 生成报告 | `hypofuse report --nbest n.jsonl --reference r.jsonl --format markdown --out report.md` |
+| `demo` | 端到端演示 | `hypofuse demo --out demo_out --utterances 5 --seed 0` |
+
+退出码：`0` 成功，`2` 用户错误（文件缺失、manifest 无效、参数错误）。
