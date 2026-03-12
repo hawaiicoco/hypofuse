@@ -92,3 +92,96 @@ result = fuse(grid, config=FusionConfig(policy="majority"))
 | `demo` | 端到端演示 | `hypofuse demo --out demo_out --utterances 5 --seed 0` |
 
 退出码：`0` 成功，`2` 用户错误（文件缺失、manifest 无效、参数错误）。
+
+## 库 API 概览
+
+### 归一化与评分
+
+```python
+from hypofuse.normalize import normalize, normalize_pair, NormalizationConfig
+
+cfg = NormalizationConfig(
+    case_fold=True, strip_punctuation=True, language_hint="en",
+)
+ref, hyp = normalize_pair("Hello, World!", "hello world", cfg)
+```
+
+### 对齐与融合
+
+```python
+from hypofuse.multi_align import progressive_align
+from hypofuse.fusion import fuse, FusionConfig
+
+grid = progressive_align([
+    ["a", "b", "c"],
+    ["a", "b", "d"],
+    ["a", "x", "c"],
+])
+result = fuse(grid, config=FusionConfig(policy="majority", tie_break="lexicographic"))
+# result.tokens -- 融合后的 token 序列
+# result.confidences -- 每个 token 的一致性分数
+```
+
+### Confusion Network
+
+```python
+from hypofuse.confusion import build_confusion_network
+
+network = build_confusion_network(grid)
+one_best = network.one_best()
+network.validate()
+```
+
+### N-gram LM 与重打分
+
+```python
+from hypofuse.ngram import NgramLM
+from hypofuse.rescore import ScoredHypothesis, rescore_nbest
+
+lm = NgramLM.train([["the", "cat", "sat"], ["the", "dog", "ran"]], order=3)
+arpa_text = lm.to_arpa()
+
+hyps = [
+    ScoredHypothesis.from_tokens(["the", "cat", "sat"], acoustic_log10=-5.0),
+    ScoredHypothesis.from_tokens(["the", "dog", "ran"], acoustic_log10=-6.0),
+]
+ranked = rescore_nbest(hyps, lm, lm_weight=0.5, acoustic_weight=1.0)
+```
+
+### 置信度校准
+
+```python
+from hypofuse.confidence import temperature_scale, expected_calibration_error
+
+calibrated = temperature_scale([0.1, 0.5, 0.9], temperature=1.5)
+```
+
+### 误差分析报告
+
+```python
+from hypofuse.analysis import (
+    UtteranceScore, slice_by_field, slice_metrics, report_to_markdown,
+)
+
+items = [
+    UtteranceScore(
+        utterance_id="u0",
+        reference=("a", "b"),
+        hypothesis=("a", "c"),
+        speaker_group="A",
+    ),
+]
+slices = slice_by_field(items, "speaker_group")
+metrics = slice_metrics(slices)
+md = report_to_markdown(metrics, [])
+```
+
+### 合成 Fixture
+
+```python
+from hypofuse.fixtures import FixtureConfig, generate_fixture, as_manifest_dicts
+
+cfg = FixtureConfig(n_utterances=10, n_best=3, seed=42)
+utterances = generate_fixture(cfg)
+rows = as_manifest_dicts(utterances)
+```
