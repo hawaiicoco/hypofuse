@@ -218,3 +218,15 @@ rows = as_manifest_dicts(utterances)
 - ARPA 格式导入导出覆盖基本字段，不支持所有扩展格式
 - 置信度校准在合成分布上验证，不声称在真实 ASR 假设上的校准效果
 - 项目中的任何数字均不声称代表真实基准测试结果
+
+## 许可证
+
+MIT License -- 详见 `LICENSE` 文件。
+
+## 参考文献
+
+- Fiscus, J. G. (1997). A Post-Processing System to Yield Reduced Word Error Rates: Recognizer Output Voting Error Reduction (ROVER). *IEEE Workshop on Automatic Speech Recognition and Understanding*.
+- Mangu, L., Brill, E., Stolcke, A. (2000). Finding Consensus in Speech Recognition. https://arxiv.org/abs/1904.08295
+- Jurafsky, D., Martin, J. H. *Speech and Language Processing* (3rd ed. draft). https://web.stanford.edu/~jurafsky/slp3/ -- N-gram 与平滑章节
+- jiwer -- WER/CER 指标 API 约定参考. https://github.com/jiwer/jiwer
+- CMU Sphinx / KenLM -- ARPA 语言模型格式文档
