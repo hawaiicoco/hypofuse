@@ -185,3 +185,23 @@ cfg = FixtureConfig(n_utterances=10, n_best=3, seed=42)
 utterances = generate_fixture(cfg)
 rows = as_manifest_dicts(utterances)
 ```
+
+## 可复现性与测试
+
+所有随机行为均通过 seed 参数控制。运行时唯一依赖为 `numpy>=1.24`，依赖声明在 `pyproject.toml` 中。
+
+### 构建与测试命令
+
+| 命令 | 说明 |
+|---|---|
+| `make build` | 构建 wheel |
+| `make test` | 运行快速测试（排除 `slow` 和 `model` 标记） |
+| `make test-all` | 运行所有测试（含 slow 和 model） |
+| `make format-check` | ruff format 检查 + ruff lint |
+| `make lint` | ruff check |
+| `make typecheck` | mypy 类型检查 |
+
+### 测试标记
+
+- `@pytest.mark.slow` -- 耗时较长的测试，默认 `make test` 跳过
+- `@pytest.mark.model` -- 需要可选 `torch` extra 的测试，默认跳过；仅使用 CPU
