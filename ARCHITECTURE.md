@@ -84,3 +84,35 @@ analysis.report_to_markdown    -- render report
 7. **Manifest round-trips are stable.** Writing and re-reading a manifest produces identical records. Tested in `test_manifests_roundtrip.py`.
 
 8. **Grid consistency.** Back-pointers reference valid columns and `grid_row` reconstructs original tokens. Tested in `test_multi_align_consistent.py`.
+
+## JSONL Schemas
+
+Every manifest record carries a `schema` field (string). The current schemas:
+
+| Schema | Key fields | Description |
+|---|---|---|
+| `hypofuse.nbest` | `utterance_id`, `system`, `language`, `hypotheses` | N-best hypothesis list per utterance |
+| `hypofuse.reference` | `utterance_id`, `text` | Reference transcript with optional metadata |
+| `hypofuse.system` | `system_id`, `language` | System or recognizer metadata |
+| `hypofuse.fusion_run` | `utterance_id`, `systems`, `tokens`, `confidences`, `policy` | Fusion output record |
+| `hypofuse.report` | `kind`, `key`, `count`, `cer`, `wer` | Analysis report record |
+
+Current `SCHEMA_VERSION = 1`.
+
+### Validation Rules
+
+- Every record must have a `schema` field matching one of the `KNOWN_SCHEMAS`
+- Required string fields (`utterance_id`, `system`, `language`, `policy`, `system_id`) must be non-empty
+- Duplicate `(schema, utterance_id)` pairs within a single file are rejected with `DuplicateIdError`
+- Optional numeric fields (`acoustic_log10`, `lm_log10`) must be numeric (not bool) when present
+
+### Versioning Policy
+
+- `schema_version` is a major version integer; breaking changes increment it
+- Readers must reject records with unsupported `schema_version` values
+- New optional fields may be added without incrementing the version
+- Removing or renaming required fields requires a version increment
+
+### Golden-file Drift Detection
+
+Tests in `test_manifests_golden.py` compare manifest output against stored golden files. Changes to serialization order, key names, or default values cause golden test failures, forcing explicit review of any schema change.
