@@ -414,3 +414,169 @@ JSON schema: `"hypofuse.confusion"`, version `1`.
 rover_diff(network, rover_tokens) -> list[int]
 consistent_with_rover(network, rover_tokens, pivot_tie_break="lexicographic") -> bool
 ```
+
+---
+
+## hypofuse.ngram
+
+Constants: `UNK = "<unk>"`, `BOS = "<s>"`, `EOS = "</s>"`.
+
+### `NgramLM` (dataclass)
+
+```python
+@dataclass
+class NgramLM:
+    order: int
+    vocab: frozenset[str]
+    counts: dict[int, Counter]
+    total_unigrams: int
+```
+
+#### `NgramLM.train(sentences, order=3) -> NgramLM`
+
+Builds an n-gram model from tokenized sentences. Raises
+`LanguageModelError` when `order < 1`.
+
+#### `prob_katz(ngram: tuple[str, ...]) -> float`
+
+Katz backoff probability. OOV tokens are mapped to `<unk>`.
+Raises `LanguageModelError` for out-of-range n-gram order.
+
+#### `prob_jelinek(ngram, lambdas=None) -> float`
+
+Jelinek-Mercer interpolated probability. Default lambdas are
+uniform (`1/order` each). Raises `LanguageModelError` when
+lambdas do not sum to 1.
+
+#### `perplexity(tokens, method="katz") -> float`
+
+Geometric mean of inverse probabilities over the padded sequence.
+Returns 1.0 for empty input.
+
+#### `to_arpa() -> str` / `NgramLM.from_arpa(payload) -> str`
+
+Export/import in ARPA format (`\data\`, `\N-grams:`, `\end\`).
+The roundtrip preserves vocabulary and n-gram counts.
+
+```python
+from hypofuse.ngram import NgramLM
+lm = NgramLM.train([["the", "cat", "sat"]], order=2)
+assert "<unk>" in lm.vocab
+p = lm.prob_katz(("the", "cat"))
+assert p > 0.0
+```
+
+---
+
+## hypofuse.rescore
+
+### `ScoredHypothesis` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class ScoredHypothesis:
+    text: str
+    tokens: tuple[str, ...]
+    acoustic_log10: float
+    lm_log10: float
+```
+
+`ScoredHypothesis.from_tokens(tokens, acoustic_log10=0.0)` is a convenience
+constructor.
+
+### Functions
+
+```python
+rescore_lm(hyp: ScoredHypothesis, lm: NgramLM) -> float
+```
+
+Computes LM log10 score using Katz backoff over the hypothesis tokens
+padded with `<s>` and `</s>`.
+
+```python
+shallow_fusion_score(hyp, lm, lm_weight, acoustic_weight=1.0) -> float
+```
+
+Returns `acoustic_weight * acoustic_log10 + lm_weight * lm_score`.
+
+```python
+rescore_nbest(nbest, lm, lm_weight, acoustic_weight=1.0) -> tuple[ScoredHypothesis, ...]
+```
+
+Re-ranks by combined score descending.
+
+```python
+lm_weight_sweep(nbest, reference, lm, weights=(0.0, 0.1, 0.2, 0.5, 1.0))
+    -> list[tuple[float, float, str]]
+```
+
+Returns `(weight, error_rate, chosen_text)` per weight value.
+
+---
+
+## hypofuse.confidence
+
+### `CalibrationBin` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class CalibrationBin:
+    lower: float
+    upper: float
+    count: int
+    avg_confidence: float
+    avg_accuracy: float
+```
+
+### Functions
+
+```python
+expected_calibration_error(confidences, accuracies, n_bins=10) -> float
+```
+
+Uniform-width bins on [0, 1]. Raises `ValueError` for misaligned
+inputs or `n_bins < 1`.
+
+```python
+reliability_bins(confidences, accuracies, n_bins=10) -> list[CalibrationBin]
+```
+
+Bin assignment: `idx = min(n_bins - 1, max(0, int(c * n_bins)))`.
+
+```python
+temperature_scale(scores: Sequence[float], temperature: float = 1.0) -> list[float]
+```
+
+Softmax with temperature. Raises `ValueError` for `temperature <= 0`.
+
+```python
+piecewise_calibrate(scores, breakpoints, slopes, intercepts) -> list[float]
+```
+
+Deterministic piecewise-linear transform. Raises `ValueError` when
+parameter lengths do not match.
+
+```python
+token_confidence_from_posteriors(posteriors: Sequence[float]) -> float
+```
+
+Mean of per-token posteriors. Returns 0.0 for empty input.
+
+```python
+utterance_confidence_from_vote(votes, chosen) -> list[float]
+```
+
+Per-token agreement fraction across vote streams.
+
+```python
+from hypofuse.confidence import temperature_scale
+out = temperature_scale([1.0, 2.0, 3.0], temperature=1.0)
+assert abs(sum(out) - 1.0) < 1e-9
+```
+
+---
+
+**Note:** There is no `hypofuse.neural` module in the current release.
+A future version may provide a neural rescoring interface requiring the
+`torch` optional dependency (`pip install hypofuse[torch]`). Any such
+module would operate on synthetic demonstration data only.
