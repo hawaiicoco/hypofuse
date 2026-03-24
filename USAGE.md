@@ -107,3 +107,107 @@ calibrated = temperature_scale([h.acoustic_log10 for h in ranked], temperature=1
 | `expected schema X, got Y` | `--schema` 参数与 manifest 中的 schema 字段不匹配 |
 | `empty scores list` | `calibrate` 命令收到了空的分数列表 |
 | `duplicate utterance_id` | manifest 文件中存在重复的 `utterance_id` |
+
+## Configuration
+
+### NormalizationConfig
+
+```python
+from hypofuse.normalize import NormalizationConfig
+
+cfg = NormalizationConfig(
+    case_fold=True,
+    strip_punctuation=True,
+    collapse_whitespace=True,
+    fullwidth_to_halfwidth=True,
+    digits_to="keep",                # "keep" | "spoken" | "hash"
+    empty_reference_policy="skip",   # "skip" | "error" | "pass"
+    tokenization="auto",             # "auto" | "word" | "char"
+    language_hint="en",              # "en" | "zh" | ""
+    itn=False,                       # enable inverse text normalization
+)
+```
+
+### FusionConfig
+
+```python
+from hypofuse.fusion import FusionConfig
+
+cfg = FusionConfig(
+    policy="majority",           # "majority" | "score_weighted" | "lm_weighted"
+    alpha=1.0,                   # LM score weight (lm_weighted policy)
+    beta=1.0,                    # acoustic weight (score_weighted policy)
+    tie_break="lexicographic",   # "lexicographic" | "first"
+    null_token="*",              # gap column token
+)
+```
+
+### FixtureConfig
+
+```python
+from hypofuse.fixtures import FixtureConfig
+
+cfg = FixtureConfig(
+    n_utterances=20,
+    n_best=3,
+    substitution_rate=0.05,
+    insertion_rate=0.02,
+    deletion_rate=0.02,
+    speaker_groups=("A", "B", "C"),
+    intents=("greeting", "qa", "command"),
+    noise_db_range=(-10.0, 35.0),
+    duration_range=(0.5, 12.0),
+    seed=0,
+    confusables=(),
+    group_bias={},
+    noise_sensitivity=0.0,
+    rank_decay=0.0,
+)
+cfg.validate()
+```
+
+### ItnConfig
+
+```python
+from hypofuse.itn import ItnConfig
+
+cfg = ItnConfig(
+    language="en",    # "en" | "zh"
+    numbers=True,
+    decimals=True,
+    percent=True,
+    units=True,
+    negative=True,
+)
+```
+
+## Extension
+
+### Adding a Fusion Policy
+
+Define a new vote function in `fusion.py` following the signature of `_majority_vote`:
+
+```python
+def _my_vote(
+    candidates: list[tuple[Hashable, float]],
+    config: FusionConfig,
+) -> tuple[Hashable, float]:
+    ...
+```
+
+Register it by adding the policy name to `_VALID_POLICIES` and a branch in `fuse()`. Update `FusionConfig.validate()` to accept the new policy string.
+
+### Adding a New Manifest Schema
+
+1. Define `SCHEMA_NEW = "hypofuse.new"` in `manifests/__init__.py` and add to `KNOWN_SCHEMAS`
+2. Create the dataclass in `manifests/new.py`
+3. Register required string fields in `manifests/validate.py` under `_STRING_FIELDS`
+4. Add golden-file tests to `tests/test_manifests_golden.py`
+
+### Running Only Fast Tests
+
+```bash
+make test
+```
+
+This runs `pytest -q -m "not slow and not model"`, skipping tests that take more than approximately one second or require the optional torch extra.
