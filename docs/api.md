@@ -204,3 +204,213 @@ from hypofuse.itn import en_words_to_int, int_to_en_words
 assert en_words_to_int("twenty one") == 21
 assert int_to_en_words(325) == "three hundred twenty five"
 ```
+
+---
+
+## hypofuse.alignment
+
+### `AlignmentCosts` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class AlignmentCosts:
+    substitution: float = 1.0
+    insertion: float = 1.0
+    deletion: float = 1.0
+    token_costs: Mapping[tuple[Hashable, Hashable], float] = field(default_factory=dict)
+```
+
+`validate()` raises `ValueError` for negative or non-finite costs.
+
+### `Alignment` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class Alignment:
+    ops: tuple[AlignmentOp, ...]
+    score: float
+```
+
+Properties: `ref_length`, `hyp_length`, `errors`. Method `to_dict()`.
+
+### `edit_alignment(reference, hypothesis, *, costs=None, band=None) -> Alignment`
+
+Standard DP edit alignment. Tie-break order: substitution > insertion > deletion.
+`band` restricts to Sakoe-Chiba band; raises `AlignmentError` when too narrow.
+String inputs raise `AlignmentError`.
+
+```python
+from hypofuse.alignment import edit_alignment
+a = edit_alignment(["a", "b", "c"], ["a", "x", "c"])
+assert a.errors == 1
+assert a.score == 1.0
+```
+
+### Rate functions
+
+```python
+word_error_rate(reference: Sequence[str], hypothesis: Sequence[str]) -> float
+character_error_rate(reference: str, hypothesis: str) -> float
+symmetric_error_rate(reference: Sequence[str], hypothesis: Sequence[str]) -> float
+corpus_error_rates(pairs, level="word") -> CorpusRates
+```
+
+Empty-reference policy: returns 0.0 when both are empty, 1.0 when
+hypothesis is non-empty.
+
+### `error_breakdown(alignment) -> ErrorBreakdown`
+
+Returns `substitutions`, `insertions`, `deletions`, `total`,
+`ref_length`, `hyp_length`.
+
+### Serialization
+
+```python
+alignment_to_markdown(alignment, max_rows=20) -> str
+alignment_to_jsonl_row(alignment, utterance_id, system="") -> dict
+alignment_from_jsonl_row(row) -> Alignment
+```
+
+`alignment_from_jsonl_row` raises `ValueError` for unknown schema or
+missing fields.
+
+---
+
+## hypofuse.multi_align
+
+### `TokenGrid` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class TokenGrid:
+    columns: tuple[tuple[Hashable, ...], ...]
+    hypotheses: tuple[tuple[Hashable, ...], ...]
+    back_pointers: tuple[tuple[tuple[int, str], ...], ...]
+    pair_alignments: tuple[Alignment, ...]
+```
+
+Properties: `width` (column count), `depth` (hypothesis count).
+The gap symbol is `GAP = "*"`.
+
+### `progressive_align(hypotheses, pivot="left", order="given") -> TokenGrid`
+
+Progressively aligns hypotheses left-to-right. `order="sorted"` makes
+the result permutation-invariant. Raises `AlignmentError` on empty input
+or `ValueError` if any hypothesis contains the gap symbol.
+
+### Helper functions
+
+```python
+grid_row(grid, hypothesis_index) -> tuple[Hashable, ...]
+grid_coverage(grid) -> list[int]
+grid_is_consistent(grid) -> bool
+grid_determinism_check(hypotheses) -> bool
+```
+
+```python
+from hypofuse.multi_align import progressive_align
+grid = progressive_align([["a", "b"], ["a", "c"]])
+assert grid.width == 2
+assert grid.depth == 2
+```
+
+---
+
+## hypofuse.fusion
+
+### `FusionConfig` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class FusionConfig:
+    policy: str = "majority"     # "majority" | "score_weighted" | "lm_weighted"
+    alpha: float = 1.0
+    beta: float = 1.0
+    tie_break: str = "lexicographic"  # "lexicographic" | "first"
+    null_token: str = "*"
+```
+
+`validate()` raises `FusionError` for unknown policy, negative alpha/beta,
+or unknown tie-break.
+
+### `FusionResult` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class FusionResult:
+    tokens: tuple[str, ...]
+    confidences: tuple[float, ...]
+    chosen: tuple[tuple[Hashable, float], ...]
+```
+
+### `fuse(grid, scores=None, lm_scores=None, config=None) -> FusionResult`
+
+Fuses hypotheses aligned on `grid`. Missing scores default to 0.
+Confidence per token is the fraction of candidates that agree with
+the chosen token.
+
+### `fusion_invariants(result, inputs) -> bool`
+
+Returns True when fused token set is a subset of input tokens.
+
+```python
+from hypofuse.multi_align import progressive_align
+from hypofuse.fusion import fuse, FusionConfig
+grid = progressive_align([["a", "b"], ["a", "b"], ["a", "c"]])
+result = fuse(grid, config=FusionConfig(policy="majority"))
+assert result.tokens == ("a", "b")
+```
+
+---
+
+## hypofuse.confusion
+
+### Data classes
+
+```python
+@dataclass(frozen=True)
+class Arc:
+    token: Hashable
+    posterior: float
+
+@dataclass(frozen=True)
+class ConfusionSlot:
+    pivot: str
+    arcs: tuple[Arc, ...]
+
+@dataclass(frozen=True)
+class ConfusionNetwork:
+    slots: tuple[ConfusionSlot, ...]
+```
+
+`ConfusionNetwork.one_best()` returns the pivot of each slot.
+`validate(tol=1e-6)` checks posterior normalization per slot.
+
+### `build_confusion_network(grid, weights=None, keep_epsilon=False) -> ConfusionNetwork`
+
+Builds a confusion network from an alignment grid. Posteriors are
+vote mass normalized. Ties broken lexicographically. When
+`keep_epsilon=False` (default), gap arcs are excluded.
+
+### `minimal_cut_one_best(network) -> tuple[str, ...]`
+
+Identical to `network.one_best()` — the per-slot argmax decomposes
+the global minimum-cost path.
+
+### Serialization
+
+```python
+confusion_to_json(network) -> str
+confusion_from_json(payload) -> ConfusionNetwork
+confusion_to_manifest_row(network, utterance_id, system="fusion") -> dict
+confusion_from_manifest_row(row) -> ConfusionNetwork
+```
+
+JSON schema: `"hypofuse.confusion"`, version `1`.
+
+### Comparison helpers
+
+```python
+rover_diff(network, rover_tokens) -> list[int]
+consistent_with_rover(network, rover_tokens, pivot_tie_break="lexicographic") -> bool
+```
