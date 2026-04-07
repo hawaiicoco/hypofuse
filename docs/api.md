@@ -580,3 +580,301 @@ assert abs(sum(out) - 1.0) < 1e-9
 A future version may provide a neural rescoring interface requiring the
 `torch` optional dependency (`pip install hypofuse[torch]`). Any such
 module would operate on synthetic demonstration data only.
+
+---
+
+## hypofuse.analysis
+
+### Data classes
+
+```python
+@dataclass(frozen=True)
+class UtteranceScore:
+    utterance_id: str
+    reference: tuple[str, ...]
+    hypothesis: tuple[str, ...]
+    speaker_group: str = ""
+    noise_db: float = 0.0
+    duration_s: float = 0.0
+    intent_domain: str = ""
+```
+
+Methods: `error_breakdown() -> (subs, dels, ins)`, property `is_perfect`.
+
+```python
+@dataclass(frozen=True)
+class SliceMetric:
+    key: str
+    count: int
+    cer: float
+    wer: float
+
+@dataclass(frozen=True)
+class ComparisonRow:
+    system_a: str
+    system_b: str
+    delta_cer: float
+    delta_wer: float
+    cer_ci_low: float
+    cer_ci_high: float
+    wer_ci_low: float
+    wer_ci_high: float
+    n_pairs: int
+
+@dataclass(frozen=True)
+class GroupBiasRow:
+    group: str
+    count: int
+    wer: float
+    wer_ci_low: float
+    wer_ci_high: float
+```
+
+### Slicing functions
+
+```python
+slice_by_duration(items, boundaries=(1.0, 3.0, 10.0)) -> dict[str, list[UtteranceScore]]
+slice_by_field(items, field_name) -> dict[str, list[UtteranceScore]]
+slice_by_quantiles(scores, field, *, buckets=4) -> dict[str, list[UtteranceScore]]
+slice_metrics(slices, use_cer=False) -> list[SliceMetric]
+```
+
+`slice_by_field` accepts `"speaker_group"`, `"intent_domain"`, `"noise"`.
+Raises `ValueError` for unknown field names.
+
+### Substitution mining
+
+```python
+substitution_pairs(items, *, top_n=None, directional=True,
+                   min_count=1, level="word") -> Counter[tuple[str, str]]
+```
+
+`level="char"` joins tokens before alignment for CJK analysis.
+
+### Bootstrap and comparison
+
+```python
+paired_bootstrap_ci(system_a, system_b, *, n_bootstrap=1000,
+                    confidence=0.95, seed=0) -> ComparisonRow
+paired_bootstrap_p_value(a_scores, b_scores, *, seed=0,
+                         iterations=1000) -> float
+group_bias_table(scores, field, *, n_bootstrap=1000,
+                 confidence=0.95, seed=0) -> list[GroupBiasRow]
+```
+
+p-value uses add-one smoothing: `p = (count_le + 1) / (iterations + 1)`.
+Raises `ValueError` for `iterations < 1` or mismatched lengths.
+
+### Corpus aggregation
+
+```python
+corpus_error_rate(scores, average="micro") -> float
+```
+
+`"micro"` = total errors / total reference tokens.
+`"macro"` = mean of per-utterance rates.
+
+### Report rendering
+
+```python
+report_to_markdown(slices, comparisons, *, meta=None) -> str
+report_to_jsonl(slices, comparisons) -> str
+```
+
+Markdown escapes pipe, backslash, and newline in slice keys.
+
+---
+
+## hypofuse.fixtures
+
+### `FixtureConfig` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class FixtureConfig:
+    n_utterances: int = 20
+    n_best: int = 3
+    substitution_rate: float = 0.05
+    insertion_rate: float = 0.02
+    deletion_rate: float = 0.02
+    speaker_groups: tuple[str, ...] = ("A", "B", "C")
+    intents: tuple[str, ...] = ("greeting", "qa", "command")
+    noise_db_range: tuple[float, float] = (-10.0, 35.0)
+    duration_range: tuple[float, float] = (0.5, 12.0)
+    seed: int = 0
+    confusables: tuple[tuple[str, str], ...] = ()
+    group_bias: Mapping[str, float] = field(default_factory=dict)
+    noise_sensitivity: float = 0.0
+    rank_decay: float = 0.0
+```
+
+`validate()` raises `ValueError` for rate sums exceeding 1.0,
+unknown group bias keys, negative rank decay, or out-of-range
+noise sensitivity.
+
+### `FixtureUtterance` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class FixtureUtterance:
+    utterance_id: str
+    reference: tuple[str, ...]
+    hypotheses: tuple[tuple[str, ...], ...]
+    speaker_group: str
+    intent_domain: str
+    noise_db: float
+    duration_s: float
+    acoustic_log10s: tuple[float, ...] = ()
+    lm_log10s: tuple[float, ...] = ()
+```
+
+### `generate_fixture(cfg: FixtureConfig) -> list[FixtureUtterance]`
+
+Deterministic generation via seeded RNG. All output is synthetic.
+
+### `as_manifest_dicts(fixtures, config=None) -> list[dict[str, Any]]`
+
+Renders fixtures as manifest dicts (nbest + reference + system rows).
+
+---
+
+## hypofuse.timings
+
+### `TokenTiming` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class TokenTiming:
+    token: str
+    start_s: float
+    end_s: float
+```
+
+`validate()` rejects NaN, negative values, and `end_s < start_s`.
+Property `duration_s`.
+
+### `TimingTrack` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class TimingTrack:
+    tokens: tuple[TokenTiming, ...] = ()
+    tolerance_s: float = 1e-9
+```
+
+Properties: `total_s`, `speaking_ratio()`. `validate()` rejects
+overlapping tokens and non-finite values.
+
+### Functions
+
+```python
+align_timings(reference_track, hypothesis_track) -> tuple[TimingAlignmentStep, ...]
+interpolate_gaps(track, max_gap_s) -> TimingTrack
+snap_to_grid(track, frame_s=0.01) -> TimingTrack
+duration_buckets(total_s, edges=(1.0, 3.0, 8.0)) -> str
+timing_report(tracks) -> TimingReport
+from_manifest_row(row) -> TimingTrack
+to_manifest_row(track) -> dict[str, Any]
+```
+
+---
+
+## hypofuse.config
+
+### Generic serialization
+
+```python
+to_dict(config) -> dict[str, Any]
+from_dict(cls, data) -> T
+load_config(cls, path) -> T
+dump_config(config, path) -> None
+config_hash(config) -> str
+merge_configs(base, overrides) -> T
+describe(config) -> str
+```
+
+`to_dict` / `from_dict` handle nested frozen dataclasses, tuples, and
+lists. `from_dict` raises `ValueError` for unknown or missing keys.
+`merge_configs` supports dotted paths (e.g. `"inner.x"`).
+
+### `HypofuseRunConfig` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class HypofuseRunConfig:
+    normalization: dict[str, Any]
+    fusion: dict[str, Any]
+    fixture: dict[str, Any]
+    lm_order: int = 3
+    lm_weight: float = 0.5
+    seed: int = 0
+```
+
+`validate()` checks `lm_order >= 1`, finite `lm_weight`, `seed >= 0`.
+`HypofuseRunConfig.from_parts(...)` builds from config instances.
+
+---
+
+## hypofuse.runmeta
+
+### `RunMetadata` (frozen dataclass)
+
+```python
+@dataclass(frozen=True)
+class RunMetadata:
+    hypofuse_version: str
+    python_version: str
+    platform: str
+    numpy_version: str
+    seed: int
+    config_hash: str
+    created_from: str = ""
+    torch_version: str | None = None
+    stamped_at: str | None = None
+```
+
+### Functions
+
+```python
+capture(seed, config=None, label="") -> RunMetadata
+stamp(meta, when: datetime) -> RunMetadata
+to_dict(meta) -> dict
+from_dict(data) -> RunMetadata
+to_json(meta) -> str
+from_json(text) -> RunMetadata
+embed(report_rows, meta) -> list[dict]
+verify(rows, meta) -> bool
+fingerprint_files(paths) -> dict[str, str]
+```
+
+`stamp` does not read wall-clock time; the caller supplies the datetime.
+`embed` adds a `"run"` key to each row without mutating the originals.
+
+---
+
+## hypofuse.util
+
+```python
+stable_hash(obj) -> str        # SHA-256 of canonical JSON
+seeded(seed) -> random.Random  # deterministic RNG (version=2)
+relative_within(base, target) -> str  # raises ValueError on escape
+safe_join(base, *parts) -> Path       # raises ValueError on escape
+json_default(value) -> Any            # numpy/dataclass/Path handler
+write_jsonl(path, rows) -> None
+read_jsonl(path) -> list[dict]        # raises ValueError on parse error
+env_flag(name, default=False) -> bool
+```
+
+---
+
+## hypofuse.exceptions
+
+| Exception | Parent | Meaning |
+|---|---|---|
+| `HypofuseError` | `Exception` | Base class |
+| `SchemaError` | `HypofuseError` | Manifest validation failure |
+| `DuplicateIdError` | `HypofuseError` | Duplicate identifier |
+| `AlignmentError` | `HypofuseError` | Malformed alignment input |
+| `FusionError` | `HypofuseError` | Unsolvable fusion config |
+| `LanguageModelError` | `HypofuseError` | N-gram training/load failure |
+| `CalibrationError` | `HypofuseError` | Inconsistent calibration input |
