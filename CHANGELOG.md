@@ -1,0 +1,58 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-09
+
+### Added
+
+- **Manifests package**: JSONL read/write with schema validation, duplicate-id
+  rejection, and audio-path safety checks. Schemas: `hypofuse.nbest`,
+  `hypofuse.reference`, `hypofuse.system`, `hypofuse.fusion_run`,
+  `hypofuse.report`.
+- **Text normalization**: NFC, fullwidth unification, punctuation stripping,
+  case folding, digit handling, auto tokenization (word/char).
+- **Inverse text normalization (ITN)**: English and Chinese number phrases,
+  decimals, negatives, percent, and unit expressions.
+- **Edit alignment**: Levenshtein DP with custom costs, Sakoe-Chiba banding,
+  WER/CER/symmetric rates, corpus micro/macro averaging, error breakdown.
+- **Multi-hypothesis alignment**: Progressive alignment into a rectangular
+  token grid with gap handling and consistency checks.
+- **ROVER fusion**: Majority, score-weighted, and LM-weighted voting policies
+  with configurable tie-breaking. Fused confidence as agreement fraction.
+- **Confusion networks**: Vote-mass posterior estimation, pivot selection,
+  1-best extraction, versioned JSON serialization, ROVER consistency checks.
+- **N-gram language model**: Training from tokenized sentences, Katz backoff,
+  Jelinek-Mercer interpolation, perplexity, ARPA export/import.
+- **N-best rescoring**: LM rescoring, shallow fusion, weight sweep.
+- **Confidence and calibration**: Temperature scaling, piecewise calibrator,
+  ECE, reliability bins, token/utterance confidence.
+- **Error analysis**: Duration/field/quantile slicing, substitution mining,
+  paired bootstrap CI and p-value, group bias table, Markdown/JSONL reports.
+- **Synthetic fixture factory**: Deterministic data generation with known
+  ground truth, configurable error rates, group bias, noise sensitivity.
+- **Token timings**: Timing tracks, alignment, gap interpolation,
+  grid snapping, duration buckets, summary statistics.
+- **Configuration**: Generic dataclass serialization, JSON I/O, content
+  hashing, dotted-path merging, `HypofuseRunConfig`.
+- **Run metadata**: Version capture, deterministic stamping, embedding
+  into report rows, file fingerprinting.
+- **CLI**: Ten subcommands (`validate`, `normalize`, `score`, `align`,
+  `fuse`, `rescore`, `calibrate`, `analyze`, `report`, `demo`).
+  Offline demo generates synthetic data end-to-end.
+- **Documentation**: API reference, schema reference, CLI reference,
+  metrics definitions, fusion guide, LM guide, calibration guide,
+  error analysis guide, fixtures guide, reproducibility guide,
+  upstream references.
+- **Project files**: Changelog, contributing guide, security policy.
+
+### Changed
+
+- Nothing (initial release).
+
+### Fixed
+
+- Nothing (initial release).
