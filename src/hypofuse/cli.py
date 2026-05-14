@@ -633,6 +633,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (HypofuseError, ValueError) as exc:
         print(f"hypofuse {args.command}: {exc}", file=sys.stderr)
         return 2
+    except BrokenPipeError:
+        # Downstream closed the pipe (`hypofuse align ... | head`); the output
+        # was delivered as far as the reader wanted it, so this is not an error.
+        return 0
 
 
 if __name__ == "__main__":
