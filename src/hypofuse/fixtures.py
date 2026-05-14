@@ -257,6 +257,15 @@ def generate_fixture(cfg: FixtureConfig) -> list[FixtureUtterance]:
     return out
 
 
+def _score_at(scores: tuple[float, ...], index: int) -> float:
+    """Return the score for one hypothesis rank, or 0.0 when absent.
+
+    Fixtures generated before scores were part of the config carry empty
+    tuples; the manifest field is optional, so those rows stay valid.
+    """
+    return float(scores[index]) if index < len(scores) else 0.0
+
+
 def as_manifest_dicts(
     fixtures: Iterable[FixtureUtterance],
     config: FixtureConfig | None = None,
@@ -283,6 +292,8 @@ def as_manifest_dicts(
                         "rank": i + 1,
                         "text": " ".join(h),
                         "tokens": list(h),
+                        "acoustic_log10": _score_at(fx.acoustic_log10s, i),
+                        "lm_log10": _score_at(fx.lm_log10s, i),
                     }
                     for i, h in enumerate(fx.hypotheses)
                 ],

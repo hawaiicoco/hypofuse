@@ -22,6 +22,8 @@ _GOLDEN = """[
     "duration_s": 1.1669876349091282,
     "hypotheses": [
       {
+        "acoustic_log10": -12.285439987389337,
+        "lm_log10": -6.5,
         "rank": 1,
         "text": "mat y thanks cat sat",
         "tokens": [
@@ -33,6 +35,8 @@ _GOLDEN = """[
         ]
       },
       {
+        "acoustic_log10": -12.285439987389337,
+        "lm_log10": -6.5,
         "rank": 2,
         "text": "mat z good thanks cat sat",
         "tokens": [
@@ -66,6 +70,8 @@ _GOLDEN = """[
     "duration_s": 1.8546107379012362,
     "hypotheses": [
       {
+        "acoustic_log10": -10.385085212489154,
+        "lm_log10": -5.0,
         "rank": 1,
         "text": "maybe good cat park cat no mat",
         "tokens": [
@@ -79,6 +85,8 @@ _GOLDEN = """[
         ]
       },
       {
+        "acoustic_log10": -12.385085212489154,
+        "lm_log10": -6.5,
         "rank": 2,
         "text": "maybe x good cat park cat no mat",
         "tokens": [
