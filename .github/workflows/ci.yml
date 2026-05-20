@@ -58,6 +58,9 @@ jobs:
       - name: Lint
         run: make lint
 
+      - name: Run examples
+        run: make examples
+
       - name: Packaging smoke test
         run: .venv/bin/python scripts/check_package.py
 
