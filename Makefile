@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 RUFF ?= .venv/bin/ruff
 
-.PHONY: build test test-all format format-check lint typecheck release help clean install-dev install-torch
+.PHONY: build test test-all format format-check lint typecheck release help clean install-dev install-torch check-package examples
 
 help:
 	@echo "Targets:"
@@ -15,6 +15,8 @@ help:
 	@echo "  lint          - ruff check"
 	@echo "  typecheck     - mypy"
 	@echo "  release       - build wheel + sdist (local artifacts only)"
+	@echo "  check-package - build wheel, install and smoke-test"
+	@echo "  examples      - run all example scripts"
 	@echo "  clean         - remove build artifacts"
 
 install-dev:
@@ -47,6 +49,12 @@ typecheck:
 
 release:
 	$(PYTHON) -m build --wheel --sdist --no-isolation
+
+check-package:
+	$(PYTHON) scripts/check_package.py --python $(PYTHON)
+
+examples:
+	$(PYTHON) scripts/run_examples.py
 
 clean:
 	rm -rf build dist src/hypofuse.egg-info .pytest_cache .ruff_cache .coverage htmlcov
