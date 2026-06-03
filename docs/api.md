@@ -666,6 +666,26 @@ Keys: `binning`, `bins`, `brier_score`, `ece`,
 
 Returns `(scores, labels, p_true)`. Synthetic only.
 
+## hypofuse.convert
+
+### Per-schema converters
+
+| Function | Schema | Output |
+|---|---|---|
+| `nbest_from_row` | hypofuse.nbest | NBestList |
+| `reference_from_row` | hypofuse.reference | ReferenceTranscript |
+| `system_from_row` | hypofuse.system | SystemMetadata |
+| `fusion_run_from_row` | hypofuse.fusion_run | FusionRun |
+| `report_from_row` | hypofuse.report | ReportRecord |
+
+Each has a matching `*_to_row` function.
+
+### Dispatch and migration
+
+`convert_row(row)` dispatches by `row["schema"]`.
+`migrate_row(row, to_version=N)` handles nbest v1->v2.
+`migrate_manifest(rows, to_version=N)` migrates all rows.
+
 ---
 
 **Note:** There is no `hypofuse.neural` module in the current release.
