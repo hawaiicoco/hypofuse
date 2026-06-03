@@ -167,6 +167,48 @@ cfg = NormalizationConfig(case_fold=False)
 assert normalize("Hello", cfg) == "Hello"
 ```
 
+### Presets
+
+| Name | Purpose |
+|---|---|
+| `score_en` | English word-level scoring |
+| `score_zh` | Chinese character-level scoring |
+| `raw` | Minimal processing |
+| `display` | Keep punctuation and case |
+
+`preset(name)` returns a named config.
+
+### Additional NormalizationConfig fields
+
+| Field | Default | Description |
+|---|---|---|
+| `keep_punctuation` | `()` | Exempt chars |
+| `unicode_form` | `NFC` | NFC/NFD/NFKC/NFKD |
+| `remove_control` | `True` | Strip Cc/Cf |
+| `case_mode` | `fold` | fold/lower/none |
+
+### `digits_to` modes
+
+| Mode | Behaviour |
+|---|---|
+| `keep` | Leave digits unchanged |
+| `spoken` | Digit runs to number words |
+| `hash` | Each digit to `#` |
+| `digits` | Number words to digit strings |
+
+### Pipeline order (fixed contract)
+
+1. Unicode normalization
+2. Full-width unification
+3. Control removal
+4. Punctuation stripping
+5. Digit normalization
+6. Case folding
+7. Whitespace collapsing
+8. ITN (optional)
+
+A final Unicode pass ensures idempotence.
+
 ---
 
 ## hypofuse.itn
