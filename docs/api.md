@@ -247,6 +247,16 @@ assert en_words_to_int("twenty one") == 21
 assert int_to_en_words(325) == "three hundred twenty five"
 ```
 
+### Percent and units
+
+`en_phrase_to_digits` handles negatives ("minus five" -> "-5").
+Unit lookup: `en_lookup_unit`, `zh_lookup_unit`.
+
+### Roundtrip stability
+
+`words_to_digits` is idempotent.
+`itn_roundtrip_stable(text, config)` verifies stability.
+
 ---
 
 ## hypofuse.alignment
