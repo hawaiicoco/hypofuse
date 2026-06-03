@@ -576,6 +576,46 @@ assert abs(sum(out) - 1.0) < 1e-9
 
 ---
 
+### Additional calibration features
+
+#### `brier_score(probs, labels) -> float`
+
+Mean squared error between predicted probabilities and binary labels.
+Lower is better; perfect predictions yield 0.0.
+
+#### `log_loss(probs, labels, eps=1e-15) -> float`
+
+Cross-entropy with clipping to avoid `log(0)`.
+
+#### `reliability_curve(probs, labels, bins=10)`
+
+Returns a `ReliabilityCurve` dataclass with `bin_edges`, `mean_predicted`,
+`observed_frequency`, and `counts` tuples.
+
+#### `LogisticCalibrator` / `fit_logistic(...)`
+
+Platt-style logistic calibrator fitted via full-batch gradient descent.
+
+#### `fit_temperature(scores, labels) -> float`
+
+Deterministic grid search for the temperature minimising NLL.
+
+#### `utterance_confidence(..., aggregation)`
+
+Aggregation modes: `mean`, `min`, `geometric`,
+`length_normalized`.
+
+#### `calibration_report(probs, labels) -> dict`
+
+Keys: `binning`, `bins`, `brier_score`, `ece`,
+`log_loss`.
+
+#### `synthetic_calibration_set(n, seed, sharpness)`
+
+Returns `(scores, labels, p_true)`. Synthetic only.
+
+---
+
 **Note:** There is no `hypofuse.neural` module in the current release.
 A future version may provide a neural rescoring interface requiring the
 `torch` optional dependency (`pip install hypofuse[torch]`). Any such
