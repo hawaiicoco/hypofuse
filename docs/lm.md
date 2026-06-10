@@ -113,3 +113,29 @@ score = acoustic_weight * acoustic_log10 + lm_weight * lm_log10
 
 There is no explicit word insertion penalty beyond the n-gram
 probabilities; the LM score already accounts for sequence probability.
+
+## Probability dispatch: `prob(ngram, method="auto")`
+
+`NgramLM.prob` dispatches to the named method:
+
+| Method | Behaviour |
+|---|---|
+| `"auto"` | ARPA tables if `source="arpa"`, else Katz |
+| `"katz"` | Katz backoff from counts |
+| `"jelinek"` | Jelinek-Mercer interpolation |
+| `"arpa"` | ARPA log-prob tables with backoff |
+
+## ARPA backoff weight rule
+
+When observed continuations consume all mass,
+backoff weight is 1.0 (log10 = 0.0).
+
+## Unigram fallback
+
+Unlisted unigrams fall back to `<unk>` probability,
+then to `1 / len(vocab)`.
+
+## Export precision
+
+ARPA uses `%.4f` formatting. Roundtrip equality
+is bounded by this quantization.
