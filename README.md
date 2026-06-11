@@ -206,6 +206,30 @@ rows = as_manifest_dicts(utterances)
 - `@pytest.mark.slow` -- 耗时较长的测试，默认 `make test` 跳过
 - `@pytest.mark.model` -- 需要可选 `torch` extra 的测试，默认跳过；仅使用 CPU
 
+## 可选依赖
+
+- `torch` extra 仅用于演示置信度模型 (`hypofuse.neural`)，且仅使用 CPU。不附带、不下载任何预训练权重。
+
+## 模块列表
+
+除核心模块外，还包括：
+
+- `hypofuse.itn` -- 逆文本归一化
+- `hypofuse.timings` -- per-token 时间戳
+- `hypofuse.config` -- 配置序列化
+- `hypofuse.runmeta` -- 运行时元数据
+- `hypofuse.convert` -- manifest 转换
+- `hypofuse.neural` -- 可选 torch 模型
+
+## 开发目标
+
+| 命令 | 说明 |
+|---|---|
+| `make examples` | 运行所有示例 |
+| `make check-package` | 构建并验证 wheel |
+
+完整 API 文档详见 `docs/` 目录。
+
 ## 时间线说明
 
 本项目于 2026 年 9 月创建和验证。Git 中 2025 年至 2026 年 8 月的日期是本次生成的演示时间线，不代表那些日期已经开展的工作。每次开发提交均执行构建、测试与格式检查；未使用空提交。项目未宣称论文成果、预训练模型或真实语音数据集成绩。
