@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09
+
+### Added
+
+- Public `__all__` surface re-exporting primary names from every module.
+- `hypofuse.neural` optional torch confidence demonstration module.
+- `hypofuse.itn` inverse text normalization.
+- `hypofuse.timings` token timing handling.
+- `hypofuse.config` declarative configuration.
+- `hypofuse.runmeta` reproducible run metadata.
+- `hypofuse.convert` strict manifest conversion.
+- Manifest schema versions; nbest v1 to v2 migration.
+- ARPA probability tables with `prob(method="auto")`.
+- N-gram pruning, coverage, interpolation, EM lambda fitting.
+- Extra fusion policies, null policies, tie-break rules.
+- Confidence additions: brier, log loss, logistic calibrator, calibration report.
+- Analysis additions: micro/macro corpus rates, quantile slices, group bias table.
+- Normalization presets and options.
+- Alignment cost models and banded alignment.
+- Insertion penalty and LM-weight monotonicity check.
+- `make examples` and `make check-package` targets.
+- CI workflow runs examples after build.
+
+### Changed
+
+- Token grid columns are rectangular.
+- `digits_to="spoken"` emits number words.
+- Duplicate-id messages name both line numbers.
+- JSONL writer is atomic and compact.
+
+### Fixed
+
+- ARPA backoff weights no longer collapse to 1e-12.
+- Bootstrap resampling reuses per-utterance rates.
+- Normalization is idempotent for inputs with stripped combining marks.
+
 ## [0.1.0] - 2026-09
 
 ### Added
