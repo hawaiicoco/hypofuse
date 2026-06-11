@@ -111,3 +111,15 @@ Slow tests include:
 
 Model tests require `pip install hypofuse[torch]` and are skipped
 when torch is not available.
+
+## Release process
+
+hypofuse uses patch-only versioning (`0.1.N`).
+
+1. Bump version in `pyproject.toml` and `src/hypofuse/_version.py`.
+2. Add `## [0.1.N] - YYYY-MM` to `CHANGELOG.md`.
+3. Run `make release`.
+4. Tag `v0.1.N` and push.
+5. GitHub Release attaches wheel/sdist. No PyPI publishing.
+
+`tests/test_release.py` enforces version consistency.
