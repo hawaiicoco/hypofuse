@@ -32,6 +32,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, fields, replace
+from typing import Any, Literal
 
 from hypofuse.exceptions import HypofuseError
 
@@ -105,6 +106,7 @@ assert len(_FULLWIDTH_TRANSLATE) == 62
 _DIGITS_RE = re.compile(r"\d")
 _DIGIT_RUN_RE = re.compile(r"\d+(?:\.\d+)?")
 _WHITESPACE_KEEP = frozenset("\t\n\r ")
+UnicodeForm = Literal["NFC", "NFD", "NFKC", "NFKD"]
 _VALID_UNICODE_FORMS = ("NFC", "NFD", "NFKC", "NFKD")
 _VALID_CASE_MODES = ("fold", "lower", "none")
 _VALID_DIGITS_TO = ("keep", "spoken", "hash", "digits")
@@ -130,7 +132,7 @@ class NormalizationConfig:
     language_hint: str = ""
     itn: bool = False
     keep_punctuation: tuple[str, ...] = ()
-    unicode_form: str = "NFC"
+    unicode_form: UnicodeForm = "NFC"
     remove_control: bool = True
     case_mode: str = "fold"
 
@@ -157,7 +159,7 @@ class NormalizationConfig:
                 f" {self.empty_reference_policy!r}"
             )
 
-    def with_overrides(self, **changes: object) -> NormalizationConfig:
+    def with_overrides(self, **changes: Any) -> NormalizationConfig:
         """Return a copy with the given fields replaced."""
         return replace(self, **changes)
 
