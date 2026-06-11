@@ -9,6 +9,7 @@ active and which language is targeted.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ class ItnConfig:
         if not any([self.numbers, self.decimals, self.percent, self.units, self.negative]):
             raise ValueError("at least one conversion flag must be enabled")
 
-    def with_overrides(self, **changes: object) -> ItnConfig:
+    def with_overrides(self, **changes: Any) -> ItnConfig:
         """Return a new config with the given fields replaced."""
         return replace(self, **changes)
 
