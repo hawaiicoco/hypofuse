@@ -104,7 +104,7 @@ class NgramLM:
         prob = 0.0
         for k, lam in enumerate(lambdas[:n], start=1):
             if k == 1:
-                cond = ()
+                cond: tuple[str, ...] = ()
                 cond_ngram = ngram[-1:]
             else:
                 cond = ngram[-k:-1]
