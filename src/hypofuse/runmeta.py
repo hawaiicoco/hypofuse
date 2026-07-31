@@ -36,7 +36,7 @@ def _normalize_platform() -> str:
 def _torch_version() -> str | None:
     """Return torch version if importable, else None."""
     try:
-        import torch  # type: ignore[import-untyped]
+        import torch
 
         return torch.__version__
     except ImportError:
