@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from hypofuse.multi_align import GAP, TokenGrid
 
@@ -45,7 +46,7 @@ class ConfusionNetwork:
         return tuple(slot.pivot for slot in self.slots)
 
     def to_dict(self) -> list[dict[str, object]]:
-        out = []
+        out: list[dict[str, object]] = []
         for slot in self.slots:
             out.append(
                 {
@@ -247,7 +248,7 @@ def confusion_to_manifest_row(
 
 def confusion_from_manifest_row(row: dict[str, object]) -> ConfusionNetwork:
     """Reconstruct a confusion network from a ``hypofuse.fusion_run`` row."""
-    arcs_raw = row.get("arcs", [])
+    arcs_raw: Any = row.get("arcs", [])
     slots: list[ConfusionSlot] = []
     for entry in arcs_raw:
         pivot = str(entry["pivot"])
