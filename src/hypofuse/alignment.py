@@ -356,4 +356,7 @@ def alignment_from_jsonl_row(row: dict[str, object]) -> Alignment:
     if not isinstance(ops_data, list):
         raise ValueError("ops must be a list")
     ops = tuple(AlignmentOp(op=d["op"], ref_token=d["ref"], hyp_token=d["hyp"]) for d in ops_data)
-    return Alignment(ops=ops, score=float(row["score"]))
+    score_val = row["score"]
+    if not isinstance(score_val, (int, float)):
+        raise ValueError(f"score must be numeric, got {type(score_val).__name__}")
+    return Alignment(ops=ops, score=float(score_val))
