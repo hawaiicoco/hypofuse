@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from hypofuse import __version__
+from hypofuse.analysis import ComparisonRow
 from hypofuse.confidence import temperature_scale
 from hypofuse.exceptions import HypofuseError
 from hypofuse.fixtures import FixtureConfig, as_manifest_dicts, generate_fixture
@@ -540,7 +541,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         return 2
     slices = slice_by_field(items, "speaker_group")
     metrics = slice_metrics(slices)
-    comparisons: list[object] = []
+    comparisons: list[ComparisonRow] = []
     if args.format == "markdown":
         text = report_to_markdown(metrics, comparisons)
     else:
