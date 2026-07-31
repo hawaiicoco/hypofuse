@@ -162,7 +162,7 @@ def substitution_pairs(
         else:
             ref_seq = item.reference
             hyp_seq = item.hypothesis
-        ops: list[AlignmentOp] = edit_alignment(ref_seq, hyp_seq).ops
+        ops: Sequence[AlignmentOp] = edit_alignment(ref_seq, hyp_seq).ops
         for op in ops:
             if op.op == SUB:
                 ref_tok = str(op.ref_token)
@@ -170,7 +170,8 @@ def substitution_pairs(
                 if directional:
                     counts[(ref_tok, hyp_tok)] += 1
                 else:
-                    pair = tuple(sorted((ref_tok, hyp_tok)))
+                    a, b = sorted((ref_tok, hyp_tok))
+                    pair = (a, b)
                     counts[pair] += 1
     if min_count > 1:
         counts = Counter({k: v for k, v in counts.items() if v >= min_count})
