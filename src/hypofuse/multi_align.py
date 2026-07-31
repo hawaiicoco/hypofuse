@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from hypofuse.alignment import DEL, INS, MATCH, SUB, Alignment, edit_alignment
 from hypofuse.exceptions import AlignmentError
@@ -155,7 +156,7 @@ def _as_tuple(seq: Sequence[Hashable]) -> tuple[Hashable, ...]:
 
 def grid_row(grid: TokenGrid, hypothesis_index: int) -> tuple[Hashable, ...]:
     """Return the token sequence for one hypothesis inside the grid."""
-    row = [GAP] * grid.width
+    row: list[Any] = [GAP] * grid.width
     pointers = grid.back_pointers[hypothesis_index]
     for hyp_pos, pointer in enumerate(pointers):
         grid_col = pointer[0]
