@@ -55,6 +55,7 @@ from __future__ import annotations
 import math
 from collections.abc import Hashable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from hypofuse.exceptions import FusionError
 from hypofuse.multi_align import GAP, TokenGrid
@@ -408,9 +409,11 @@ def fusion_to_manifest_row(
 
 def fusion_from_manifest_row(row: dict[str, object]) -> FusionResult:
     """Reconstruct a FusionResult from a ``hypofuse.fusion_run`` manifest row."""
-    tokens = tuple(str(t) for t in row["tokens"])
-    confidences = tuple(float(c) for c in row["confidences"])
-    arcs_raw = row.get("arcs", [])
+    tokens_val: Any = row["tokens"]
+    tokens = tuple(str(t) for t in tokens_val)
+    conf_val: Any = row["confidences"]
+    confidences = tuple(float(c) for c in conf_val)
+    arcs_raw: Any = row.get("arcs", [])
     chosen_list: list[tuple[str, float]] = []
     for entry in arcs_raw:
         pivot = str(entry["pivot"])
