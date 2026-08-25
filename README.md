@@ -228,7 +228,7 @@ rows = as_manifest_dicts(utterances)
 | `make examples` | 运行所有示例 |
 | `make check-package` | 构建并验证 wheel |
 
-完整 API 文档详见 `docs/` 目录。
+完整文档索引见 [`docs/README.md`](docs/README.md)：API 参考、CLI、schema、指标定义、融合、语言模型、校准、错误分析、合成数据、可复现性与参考资料。
 
 ## 时间线说明
 
