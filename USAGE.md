@@ -210,4 +210,6 @@ Register it by adding the policy name to `_VALID_POLICIES` and a branch in `fuse
 make test
 ```
 
-This runs `pytest -q -m "not slow and not model"`, skipping tests that take more than approximately one second or require the optional torch extra.
+This runs `pytest -q -m "not slow"`, skipping only the tests that take more than
+approximately one second. Tests marked `model` run when the optional `torch` extra is
+installed and skip cleanly when it is not.

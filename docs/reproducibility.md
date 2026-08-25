@@ -99,9 +99,10 @@ byte-identical output.
 | `@pytest.mark.slow` | Tests with > ~1 s runtime | Up to 60 s |
 | `@pytest.mark.model` | Tests requiring `torch` | Variable |
 
-Default `make test` runs `pytest -q -m "not slow and not model"`,
-completing in approximately 15 seconds. `make test-all` runs
-everything including slow and model tests.
+Default `make test` runs `pytest -q -m "not slow"`, completing in under
+15 seconds; `model` tests run when the optional `torch` extra is installed
+and skip cleanly otherwise. `make test-all` runs everything, including the
+slow tests.
 
 Slow tests include:
 - Large banded alignment (2000 tokens, band=200).

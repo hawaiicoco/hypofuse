@@ -8,7 +8,7 @@ help:
 	@echo "  install-dev   - install project + dev extras into .venv (uv)"
 	@echo "  install-torch - install CPU-only torch extra into .venv"
 	@echo "  build         - build sdist + wheel into dist/"
-	@echo "  test          - run pytest excluding slow + model tests"
+	@echo "  test          - run pytest excluding slow tests (model tests skip without torch)"
 	@echo "  test-all      - run all pytest tests (slow + model included)"
 	@echo "  format        - ruff format"
 	@echo "  format-check  - ruff format --check + ruff check"
@@ -30,7 +30,7 @@ build:
 	$(PYTHON) -m build --wheel --no-isolation
 
 test:
-	$(PYTHON) -m pytest -q -m "not slow and not model"
+	$(PYTHON) -m pytest -q -m "not slow"
 
 test-all:
 	$(PYTHON) -m pytest -q
