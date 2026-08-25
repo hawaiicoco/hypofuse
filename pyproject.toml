@@ -34,6 +34,7 @@ dev = [
     "ruff>=0.6",
     "build>=1.2",
     "wheel>=0.42",
+    "hatchling>=1.25",
     "mypy>=1.10",
 ]
 torch = [
@@ -74,7 +75,6 @@ ignore = ["E501"]
 "src/hypofuse/normalize.py" = ["RUF001"]
 
 [tool.mypy]
-python_version = "3.11"
 strict = false
 warn_unused_ignores = true
 warn_redundant_casts = true
