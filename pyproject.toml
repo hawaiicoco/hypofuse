@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hypofuse"
-version = "0.1.1"
+version = "0.1.2"
 description = "Speech recognition post-processing toolkit: n-best fusion, alignment, LM rescoring, calibration and error analysis."
 readme = "README.md"
 requires-python = ">=3.11"
