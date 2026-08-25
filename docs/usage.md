@@ -38,7 +38,9 @@ from hypofuse.confidence import calibrate, calibration_report
 
 scores, labels, _ = synthetic_calibration_set(n=1000, seed=0)
 calibrated = calibrate(
-    scores, [float(l) for l in labels], method="temperature",
+    scores,
+    [float(l) for l in labels],
+    method="temperature",
 )
 report = calibration_report(calibrated, [float(l) for l in labels])
 print(f"ECE: {report['ece']:.4f}, Brier: {report['brier_score']:.4f}")

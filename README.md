@@ -68,11 +68,13 @@ ref = normalize("The cat sat on the mat")
 hyp = normalize("the cat sit on a mat")
 wer = word_error_rate(ref.split(), hyp.split())
 
-grid = progressive_align([
-    ["the", "cat", "sat"],
-    ["the", "cat", "sit"],
-    ["a", "cat", "sat"],
-])
+grid = progressive_align(
+    [
+        ["the", "cat", "sat"],
+        ["the", "cat", "sit"],
+        ["a", "cat", "sat"],
+    ]
+)
 result = fuse(grid, config=FusionConfig(policy="majority"))
 ```
 
@@ -101,7 +103,9 @@ result = fuse(grid, config=FusionConfig(policy="majority"))
 from hypofuse.normalize import normalize, normalize_pair, NormalizationConfig
 
 cfg = NormalizationConfig(
-    case_fold=True, strip_punctuation=True, language_hint="en",
+    case_fold=True,
+    strip_punctuation=True,
+    language_hint="en",
 )
 ref, hyp = normalize_pair("Hello, World!", "hello world", cfg)
 ```
@@ -112,11 +116,13 @@ ref, hyp = normalize_pair("Hello, World!", "hello world", cfg)
 from hypofuse.multi_align import progressive_align
 from hypofuse.fusion import fuse, FusionConfig
 
-grid = progressive_align([
-    ["a", "b", "c"],
-    ["a", "b", "d"],
-    ["a", "x", "c"],
-])
+grid = progressive_align(
+    [
+        ["a", "b", "c"],
+        ["a", "b", "d"],
+        ["a", "x", "c"],
+    ]
+)
 result = fuse(grid, config=FusionConfig(policy="majority", tie_break="lexicographic"))
 # result.tokens -- 融合后的 token 序列
 # result.confidences -- 每个 token 的一致性分数
@@ -160,7 +166,10 @@ calibrated = temperature_scale([0.1, 0.5, 0.9], temperature=1.5)
 
 ```python
 from hypofuse.analysis import (
-    UtteranceScore, slice_by_field, slice_metrics, report_to_markdown,
+    UtteranceScore,
+    slice_by_field,
+    slice_metrics,
+    report_to_markdown,
 )
 
 items = [

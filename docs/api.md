@@ -39,6 +39,7 @@ class NBestHypothesis:
 
 ```python
 from hypofuse.manifests import NBestHypothesis
+
 h = NBestHypothesis(rank=1, text="hello world", tokens=("hello", "world"))
 assert h.acoustic_log10 == 0.0
 ```
@@ -135,9 +136,9 @@ class NormalizationConfig:
     strip_punctuation: bool = True
     collapse_whitespace: bool = True
     fullwidth_to_halfwidth: bool = True
-    digits_to: str = "keep"          # "keep" | "spoken" | "hash"
+    digits_to: str = "keep"  # "keep" | "spoken" | "hash"
     empty_reference_policy: str = "skip"  # "skip" | "error" | "pass"
-    tokenization: str = "auto"       # "auto" | "word" | "char"
+    tokenization: str = "auto"  # "auto" | "word" | "char"
     language_hint: str = ""
     itn: bool = False
 ```
@@ -162,6 +163,7 @@ Normalizes both strings with the same config. Raises `HypofuseError` when
 
 ```python
 from hypofuse.normalize import normalize, NormalizationConfig
+
 assert normalize("Hello, World!") == "hello world"
 cfg = NormalizationConfig(case_fold=False)
 assert normalize("Hello", cfg) == "Hello"
@@ -218,7 +220,7 @@ A final Unicode pass ensures idempotence.
 ```python
 @dataclass(frozen=True)
 class ItnConfig:
-    language: str = "en"     # "en" | "zh"
+    language: str = "en"  # "en" | "zh"
     numbers: bool = True
     decimals: bool = True
     percent: bool = True
@@ -243,6 +245,7 @@ class ItnConfig:
 
 ```python
 from hypofuse.itn import en_words_to_int, int_to_en_words
+
 assert en_words_to_int("twenty one") == 21
 assert int_to_en_words(325) == "three hundred twenty five"
 ```
@@ -293,6 +296,7 @@ String inputs raise `AlignmentError`.
 
 ```python
 from hypofuse.alignment import edit_alignment
+
 a = edit_alignment(["a", "b", "c"], ["a", "x", "c"])
 assert a.errors == 1
 assert a.score == 1.0
@@ -361,6 +365,7 @@ grid_determinism_check(hypotheses) -> bool
 
 ```python
 from hypofuse.multi_align import progressive_align
+
 grid = progressive_align([["a", "b"], ["a", "c"]])
 assert grid.width == 2
 assert grid.depth == 2
@@ -375,7 +380,7 @@ assert grid.depth == 2
 ```python
 @dataclass(frozen=True)
 class FusionConfig:
-    policy: str = "majority"     # "majority" | "score_weighted" | "lm_weighted"
+    policy: str = "majority"  # "majority" | "score_weighted" | "lm_weighted"
     alpha: float = 1.0
     beta: float = 1.0
     tie_break: str = "lexicographic"  # "lexicographic" | "first"
@@ -408,6 +413,7 @@ Returns True when fused token set is a subset of input tokens.
 ```python
 from hypofuse.multi_align import progressive_align
 from hypofuse.fusion import fuse, FusionConfig
+
 grid = progressive_align([["a", "b"], ["a", "b"], ["a", "c"]])
 result = fuse(grid, config=FusionConfig(policy="majority"))
 assert result.tokens == ("a", "b")
@@ -425,10 +431,12 @@ class Arc:
     token: Hashable
     posterior: float
 
+
 @dataclass(frozen=True)
 class ConfusionSlot:
     pivot: str
     arcs: tuple[Arc, ...]
+
 
 @dataclass(frozen=True)
 class ConfusionNetwork:
@@ -512,6 +520,7 @@ The roundtrip preserves vocabulary and n-gram counts.
 
 ```python
 from hypofuse.ngram import NgramLM
+
 lm = NgramLM.train([["the", "cat", "sat"]], order=2)
 assert "<unk>" in lm.vocab
 p = lm.prob_katz(("the", "cat"))
@@ -622,6 +631,7 @@ Per-token agreement fraction across vote streams.
 
 ```python
 from hypofuse.confidence import temperature_scale
+
 out = temperature_scale([1.0, 2.0, 3.0], temperature=1.0)
 assert abs(sum(out) - 1.0) < 1e-9
 ```
@@ -721,6 +731,7 @@ class SliceMetric:
     cer: float
     wer: float
 
+
 @dataclass(frozen=True)
 class ComparisonRow:
     system_a: str
@@ -732,6 +743,7 @@ class ComparisonRow:
     wer_ci_low: float
     wer_ci_high: float
     n_pairs: int
+
 
 @dataclass(frozen=True)
 class GroupBiasRow:

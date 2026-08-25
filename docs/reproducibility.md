@@ -48,6 +48,7 @@ records with unrecognized schema versions.
 
 ```python
 from hypofuse.runmeta import capture, to_json
+
 meta = capture(seed=42, config=my_config, label="experiment-1")
 print(to_json(meta))
 ```

@@ -120,11 +120,11 @@ cfg = NormalizationConfig(
     strip_punctuation=True,
     collapse_whitespace=True,
     fullwidth_to_halfwidth=True,
-    digits_to="keep",                # "keep" | "spoken" | "hash"
-    empty_reference_policy="skip",   # "skip" | "error" | "pass"
-    tokenization="auto",             # "auto" | "word" | "char"
-    language_hint="en",              # "en" | "zh" | ""
-    itn=False,                       # enable inverse text normalization
+    digits_to="keep",  # "keep" | "spoken" | "hash"
+    empty_reference_policy="skip",  # "skip" | "error" | "pass"
+    tokenization="auto",  # "auto" | "word" | "char"
+    language_hint="en",  # "en" | "zh" | ""
+    itn=False,  # enable inverse text normalization
 )
 ```
 
@@ -134,11 +134,11 @@ cfg = NormalizationConfig(
 from hypofuse.fusion import FusionConfig
 
 cfg = FusionConfig(
-    policy="majority",           # "majority" | "score_weighted" | "lm_weighted"
-    alpha=1.0,                   # LM score weight (lm_weighted policy)
-    beta=1.0,                    # acoustic weight (score_weighted policy)
-    tie_break="lexicographic",   # "lexicographic" | "first"
-    null_token="*",              # gap column token
+    policy="majority",  # "majority" | "score_weighted" | "lm_weighted"
+    alpha=1.0,  # LM score weight (lm_weighted policy)
+    beta=1.0,  # acoustic weight (score_weighted policy)
+    tie_break="lexicographic",  # "lexicographic" | "first"
+    null_token="*",  # gap column token
 )
 ```
 
@@ -172,7 +172,7 @@ cfg.validate()
 from hypofuse.itn import ItnConfig
 
 cfg = ItnConfig(
-    language="en",    # "en" | "zh"
+    language="en",  # "en" | "zh"
     numbers=True,
     decimals=True,
     percent=True,
@@ -191,8 +191,7 @@ Define a new vote function in `fusion.py` following the signature of `_majority_
 def _my_vote(
     candidates: list[tuple[Hashable, float]],
     config: FusionConfig,
-) -> tuple[Hashable, float]:
-    ...
+) -> tuple[Hashable, float]: ...
 ```
 
 Register it by adding the policy name to `_VALID_POLICIES` and a branch in `fuse()`. Update `FusionConfig.validate()` to accept the new policy string.

@@ -8,6 +8,7 @@ statistic, not a calibrated probability.
 
 ```python
 from hypofuse.confidence import token_confidence_from_posteriors
+
 c = token_confidence_from_posteriors([0.4, 0.6, 0.8])
 # c == 0.6
 ```
