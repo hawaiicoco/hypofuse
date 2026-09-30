@@ -23,13 +23,6 @@ hypofuse 实现了从假设列表到融合结果的完整后处理流水线。�
 - **CLI** -- 10 个子命令，覆盖 validate、normalize、score、align、fuse、rescore、calibrate、analyze、report、demo
 - **Token timing** -- per-token 时间戳处理、对齐、插值、grid 量化和统计报告
 
-## 数据声明
-
-- 所有捆绑数据均为合成数据（synthetic），不附带真实语音或转录
-- 不附带、不下载任何预训练权重
-- 可选的 `torch` extra 仅用于演示置信度模型，且仅使用 CPU
-- 项目中没有任何地方声称真实基准测试结果
-
 ## 安装
 
 ```bash
@@ -239,13 +232,8 @@ rows = as_manifest_dicts(utterances)
 
 完整文档索引见 [`docs/README.md`](docs/README.md)：API 参考、CLI、schema、指标定义、融合、语言模型、校准、错误分析、合成数据、可复现性与参考资料。
 
-## 时间线说明
-
-本项目于 2026 年 9 月创建和验证。Git 中 2025 年至 2026 年 8 月的日期是本次生成的演示时间线，不代表那些日期已经开展的工作。每次开发提交均执行构建、测试与格式检查；未使用空提交。项目未宣称论文成果、预训练模型或真实语音数据集成绩。
-
 ## 局限性
 
-- 未在真实 ASR 系统上评估；所有测试和演示使用合成数据
 - 不附带任何预训练模型权重；可选的 `torch` extra 仅用于演示性置信度模型（CPU）
 - N-gram 语言模型（Katz backoff + Jelinek-Mercer）是教学级别的最小实现，不适合生产环境大规模语料
 - ARPA 格式导入导出覆盖基本字段，不支持所有扩展格式
